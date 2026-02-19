@@ -2,7 +2,7 @@ import time, os, subprocess, json, threading, urllib.parse
 from http.server import BaseHTTPRequestHandler, HTTPServer
 import sys
 
-# Mematikan log terminal agar Termux bisa jalan 100% di background (0% CPU)
+# Mematikan log terminal agar Termux bisa jalan 100% di background
 class QuietLogger(object):
     def write(self, *args, **kwargs): pass
     def flush(self): pass
@@ -59,11 +59,11 @@ class ArsyServer(BaseHTTPRequestHandler):
         # 1. HALAMAN DASHBOARD INTERAKTIF (HTML Frontend)
         if parsed.path == '/':
             self.send_response(200)
-            self.send_header('Content-type', 'text/html')
+            self.send_header('Content-type', 'text/html; charset=utf-8') # FIX EMOJI
             self.end_headers()
             
             html = """
-            <!DOCTYPE html><html><head><meta name='viewport' content='width=device-width, initial-scale=1'>
+            <!DOCTYPE html><html><head><meta charset='UTF-8'><meta name='viewport' content='width=device-width, initial-scale=1'>
             <title>ARSY V2.0</title>
             <style>
                 body { background: #0f0f0f; color: #fff; font-family: 'Segoe UI', sans-serif; margin: 0; padding: 15px; }
@@ -146,9 +146,7 @@ while True:
             uptime_sec = time.time() - state["start_time"]
             time_since_last_ping = time.time() - state["last_ping"]
             
-            # Restart jika 3 menit macet/black screen
             if time_since_last_ping > 180 and uptime_sec > 180: launch_app(a)
-            # Restart paksa setiap 4 jam agar RAM tidak bocor
             if uptime_sec > 14400: launch_app(a)
     
     if time.time() - last_ram_clear > 3600:
