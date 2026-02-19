@@ -2,7 +2,7 @@ import time, os, subprocess, json, threading, urllib.parse
 from http.server import BaseHTTPRequestHandler, HTTPServer
 import sys
 
-# Mematikan log agar tidak nyangkut
+# Mematikan log terminal
 class QuietLogger(object):
     def write(self, *args, **kwargs): pass
     def flush(self): pass
@@ -17,20 +17,19 @@ if os.path.exists(CONFIG_FILE):
         with open(CONFIG_FILE, "r") as f: config.update(json.load(f))
     except: pass
 
-# 1. MENCARI APLIKASI ROBLOX
+# 1. SMART DETECTOR KHUSUS ROBLOX
 try:
     raw_apps = subprocess.check_output("su -c 'pm list packages | grep roblox'", shell=True).decode('utf-8').strip().split('\n')
     apps = [p.replace('package:', '').strip() for p in raw_apps if p.strip()]
 except: apps = ["com.roblox.client"]
 
-# Status Awal (Sekarang dibuat Suspended / Berhenti, agar Anda yang trigger manual)
 app_states = {a: {"status": "🔴 Stopped", "start_time": time.time(), "last_ping": time.time(), "usn": config["apps"].get(a, a), "suspended": True} for a in apps}
 
-# 2. FUNGSI CEK RAM ANDROID
+# 2. SISTEM PEMBACA RAM
 def get_total_ram():
     try:
         out = subprocess.check_output("su -c 'free -m'", shell=True).decode('utf-8').split('\n')[1].split()
-        return f"Sisa RAM Android: {out[3]}MB / {out[1]}MB"
+        return f"Sisa RAM Redfinger: {out[3]}MB / {out[1]}MB"
     except: return "Membaca RAM..."
 
 def get_app_ram(pkg):
@@ -39,7 +38,7 @@ def get_app_ram(pkg):
         return f"{int(out.strip().split()[1]) // 1024} MB"
     except: return "0 MB"
 
-# 3. FUNGSI TRIGGER LAUNCH
+# 3. KENDALI LAUNCHER APLIKASI
 def launch_app(pkg):
     subprocess.run(f"su -c 'am force-stop {pkg}'", shell=True)
     time.sleep(2)
@@ -56,7 +55,7 @@ def format_uptime(sec):
     h = int(sec // 3600); m = int((sec % 3600) // 60); s = int(sec % 60)
     return f"{h:02d}:{m:02d}:{s:02d}"
 
-# 4. SERVER & TAMPILAN DASHBOARD PRO
+# 4. SERVER DASHBOARD PRO
 class ArsyServer(BaseHTTPRequestHandler):
     def do_GET(self):
         parsed = urllib.parse.urlparse(self.path)
@@ -64,7 +63,6 @@ class ArsyServer(BaseHTTPRequestHandler):
         
         if parsed.path == '/':
             self.send_response(200); self.send_header('Content-type', 'text/html; charset=utf-8'); self.end_headers()
-            
             html = f"""
             <!DOCTYPE html><html><head><meta charset='UTF-8'><meta name='viewport' content='width=device-width, initial-scale=1'>
             <style>
@@ -119,7 +117,7 @@ class ArsyServer(BaseHTTPRequestHandler):
             self.send_response(200); self.end_headers(); return
 
         if parsed.path == '/reset':
-            subprocess.run("su -c 'echo 3 > /proc/sys/vm/drop_caches'", shell=True) # Memaksa Android membuang sampah RAM
+            subprocess.run("su -c 'echo 3 > /proc/sys/vm/drop_caches'", shell=True) 
             self.send_response(200); self.end_headers(); return
 
         if parsed.path == '/action':
@@ -145,5 +143,13 @@ class ArsyServer(BaseHTTPRequestHandler):
 
 threading.Thread(target=lambda: HTTPServer(('127.0.0.1', PORT), ArsyServer).serve_forever(), daemon=True).start()
 
+# ==========================================
+# 🚀 AUTOMATIS BUKA COMMAND CENTER
+# ==========================================
+time.sleep(1) # Beri jeda 1 detik agar server siap
+try:
+    subprocess.run("su -c 'am start -a android.intent.action.VIEW -d \"http://127.0.0.1:8080\"'", shell=True, stdout=subprocess.DEVNULL)
+except: pass
+
 while True:
-    time.sleep(10) # Loop berjalan diam untuk menjaga server tetap hidup
+    time.sleep(10)
