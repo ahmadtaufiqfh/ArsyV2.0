@@ -1,8 +1,10 @@
 #!/bin/bash
 echo -e "\e[1;32m=== Memulai Instalasi Arsy V2.0 ===\e[0m"
 
-# Update system & install kebutuhan
-pkg update -y && pkg upgrade -y
+# Update system & install kebutuhan (Mode Anti-Macet)
+export DEBIAN_FRONTEND=noninteractive
+pkg update -y
+pkg upgrade -y -o Dpkg::Options::="--force-confold"
 pkg install curl python tmux -y
 
 # Membuat direktori kerja
