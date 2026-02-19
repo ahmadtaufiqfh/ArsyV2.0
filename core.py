@@ -2,7 +2,6 @@ import time, os, subprocess, json, threading, urllib.parse
 from http.server import BaseHTTPRequestHandler, HTTPServer
 import sys
 
-# Mematikan log terminal agar Termux bisa jalan 100% di background
 class QuietLogger(object):
     def write(self, *args, **kwargs): pass
     def flush(self): pass
@@ -19,10 +18,26 @@ if os.path.exists(CONFIG_FILE):
 
 ps_link = config.get("ps_link", "")
 
+# ==========================================
+# 🤖 SMART PACKAGE DETECTOR
+# ==========================================
 try:
-    raw_apps = subprocess.check_output("su -c 'pm list packages | grep roblox'", shell=True).decode('utf-8').strip().split('\n')
-    apps = [p.replace('package:', '').strip() for p in raw_apps if p.strip()]
-except: apps = ["com.roblox.client"]
+    # Mencari semua aplikasi pihak ketiga (-3) yang diinstal manual di Redfinger
+    raw_apps = subprocess.check_output("su -c 'pm list packages -3'", shell=True).decode('utf-8').strip().split('\n')
+    
+    # Daftar aplikasi bawaan/tools yang harus diabaikan oleh bot
+    ignore_list = ['termux', 'google', 'android', 'browser', 'launcher', 'webview', 'keyboard', 'redfinger', 'vending']
+    
+    apps = []
+    for p in raw_apps:
+        pkg = p.replace('package:', '').strip()
+        if pkg and not any(ig in pkg.lower() for ig in ignore_list):
+            apps.append(pkg)
+            
+    # Jika gagal menemukan, gunakan nama standar
+    if not apps: apps = ["com.roblox.client"]
+except:
+    apps = ["com.roblox.client"]
 
 account_map = config.get("apps", {})
 app_states = {a: {"status": "🟡 Reconnect", "start_time": time.time(), "last_ping": time.time(), "usn": account_map.get(a, a), "suspended": False} for a in apps}
@@ -56,10 +71,9 @@ class ArsyServer(BaseHTTPRequestHandler):
         parsed = urllib.parse.urlparse(self.path)
         query = urllib.parse.parse_qs(parsed.query)
         
-        # 1. HALAMAN DASHBOARD INTERAKTIF (HTML Frontend)
         if parsed.path == '/':
             self.send_response(200)
-            self.send_header('Content-type', 'text/html; charset=utf-8') # FIX EMOJI
+            self.send_header('Content-type', 'text/html; charset=utf-8')
             self.end_headers()
             
             html = """
@@ -94,11 +108,10 @@ class ArsyServer(BaseHTTPRequestHandler):
                 
                 html += f"<tr><td>{state['usn']}</td><td class='{c_stat}'>{state['status']}</td><td>{up_str}</td><td>{btns}</td></tr>"
             
-            html += "</table><div style='text-align:center; margin-top:20px; font-size:12px; color:#666;'>Engine: Active | Auto-Flush: ON</div></body></html>"
+            html += "</table><div style='text-align:center; margin-top:20px; font-size:12px; color:#666;'>Engine: Auto-Detect Active | Auto-Flush: ON</div></body></html>"
             self.wfile.write(html.encode('utf-8'))
             return
 
-        # 2. API ACTION (Menerima perintah tombol dari web)
         if parsed.path == '/action':
             tgt = query.get('app', [''])[0]
             act = query.get('type', [''])[0]
@@ -112,7 +125,6 @@ class ArsyServer(BaseHTTPRequestHandler):
             self.end_headers()
             return
 
-        # 3. API PING (Menerima sinyal dari Game Lua)
         usn_sig = query.get('usn', [''])[0]
         tgt = next((a for a, s in app_states.items() if s["usn"] == usn_sig or a == usn_sig), None)
         
@@ -136,9 +148,6 @@ class ArsyServer(BaseHTTPRequestHandler):
 
 threading.Thread(target=lambda: HTTPServer(('127.0.0.1', PORT), ArsyServer).serve_forever(), daemon=True).start()
 
-# ==========================================
-# ⏱️ WATCHDOG & AUTO-FLUSH (AFK 1 Minggu)
-# ==========================================
 last_ram_clear = time.time()
 while True:
     for a, state in app_states.items():
