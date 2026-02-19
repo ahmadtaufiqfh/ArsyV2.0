@@ -1,12 +1,5 @@
 import time, os, subprocess, json, threading, urllib.parse
 from http.server import BaseHTTPRequestHandler, HTTPServer
-import sys
-
-# Mematikan log terminal
-class QuietLogger(object):
-    def write(self, *args, **kwargs): pass
-    def flush(self): pass
-sys.stderr = QuietLogger()
 
 CONFIG_FILE = "arsy_config.json"
 PORT = 8080
@@ -17,15 +10,15 @@ if os.path.exists(CONFIG_FILE):
         with open(CONFIG_FILE, "r") as f: config.update(json.load(f))
     except: pass
 
-# 1. SMART DETECTOR KHUSUS ROBLOX
 try:
     raw_apps = subprocess.check_output("su -c 'pm list packages | grep roblox'", shell=True).decode('utf-8').strip().split('\n')
     apps = [p.replace('package:', '').strip() for p in raw_apps if p.strip()]
 except: apps = ["com.roblox.client"]
 
+if not apps: apps = ["com.roblox.client"]
+
 app_states = {a: {"status": "🔴 Stopped", "start_time": time.time(), "last_ping": time.time(), "usn": config["apps"].get(a, a), "suspended": True} for a in apps}
 
-# 2. SISTEM PEMBACA RAM
 def get_total_ram():
     try:
         out = subprocess.check_output("su -c 'free -m'", shell=True).decode('utf-8').split('\n')[1].split()
@@ -38,7 +31,6 @@ def get_app_ram(pkg):
         return f"{int(out.strip().split()[1]) // 1024} MB"
     except: return "0 MB"
 
-# 3. KENDALI LAUNCHER APLIKASI
 def launch_app(pkg):
     subprocess.run(f"su -c 'am force-stop {pkg}'", shell=True)
     time.sleep(2)
@@ -55,8 +47,9 @@ def format_uptime(sec):
     h = int(sec // 3600); m = int((sec % 3600) // 60); s = int(sec % 60)
     return f"{h:02d}:{m:02d}:{s:02d}"
 
-# 4. SERVER DASHBOARD PRO
 class ArsyServer(BaseHTTPRequestHandler):
+    def log_message(self, format, *args): pass 
+    
     def do_GET(self):
         parsed = urllib.parse.urlparse(self.path)
         query = urllib.parse.parse_qs(parsed.query)
@@ -69,56 +62,51 @@ class ArsyServer(BaseHTTPRequestHandler):
                 body {{ background: #0f0f0f; color: #e0e0e0; font-family: sans-serif; margin: 0; padding: 10px; font-size: 12px; }}
                 .box {{ background: #1a1a1a; padding: 10px; border-radius: 5px; margin-bottom: 10px; border: 1px solid #333; }}
                 input {{ width: 100%; padding: 6px; margin: 4px 0; background: #222; color: #fff; border: 1px solid #555; box-sizing: border-box; }}
-                .btn {{ padding: 6px 10px; border: none; border-radius: 3px; cursor: pointer; font-weight: bold; color: #fff; margin-right: 2px; }}
-                .b-save {{ background: #00c853; width: 100%; margin-top: 5px; }} .b-run {{ background: #2979ff; }} .b-stp {{ background: #ff1744; }} .b-rst {{ background: #ff9100; width: 100%; margin-top: 5px; }}
+                .btn {{ padding: 6px 10px; border: none; border-radius: 3px; cursor: pointer; font-weight: bold; color: #fff; margin-right: 2px; text-decoration: none; display: inline-block; }}
+                .b-save {{ background: #00c853; width: 100%; margin-top: 5px; text-align: center; }} .b-run {{ background: #2979ff; }} .b-stp {{ background: #ff1744; }} .b-rst {{ background: #ff9100; width: 100%; margin-top: 5px; text-align: center; }}
                 table {{ width: 100%; border-collapse: collapse; margin-top: 5px; }}
                 th, td {{ border: 1px solid #333; padding: 6px; text-align: center; }}
                 th {{ background: #222; color: #00c853; }}
                 .on {{ color: #00c853; font-weight:bold; }} .wait {{ color: #ffea00; }} .off {{ color: #ff1744; }}
             </style>
             <script>
-                function action(app, act) {{ fetch('/action?app=' + app + '&type=' + act).then(() => location.reload()); }}
                 function saveCfg() {{
                     let ps = document.getElementById('ps').value; let dc = document.getElementById('dc').value;
-                    fetch('/config?ps=' + encodeURIComponent(ps) + '&dc=' + encodeURIComponent(dc)).then(() => alert('Tersimpan!'));
+                    window.location.href = '/config?ps=' + encodeURIComponent(ps) + '&dc=' + encodeURIComponent(dc);
                 }}
-                setTimeout(() => location.reload(), 15000);
+                setTimeout(() => window.location.reload(), 15000);
             </script>
             </head><body>
             <h3 style="color:#00c853; text-align:center; margin: 5px 0;">🚀 ARSY V2.0 PRO</h3>
-            
             <div class="box">
                 <b>⚙️ Pengaturan Server</b>
-                <input type="text" id="ps" placeholder="Link Private Server (Kosongkan jika main Public)" value="{config.get('ps_link', '')}">
+                <input type="text" id="ps" placeholder="Link Private Server" value="{config.get('ps_link', '')}">
                 <input type="text" id="dc" placeholder="Link Webhook Discord" value="{config.get('discord_link', '')}">
                 <button class="btn b-save" onclick="saveCfg()">Simpan Konfigurasi</button>
             </div>
-
             <div class="box">
                 <b>📊 Analitik Sistem</b><br>
                 <span style="color:#2979ff; font-weight:bold;">{get_total_ram()}</span>
-                <button class="btn b-rst" onclick="fetch('/reset').then(() => location.reload())">🧹 Reset & Bersihkan Cache RAM</button>
+                <a href="/reset" class="btn b-rst">🧹 Reset RAM</a>
             </div>
-
             <table><tr><th>Akun</th><th>Status</th><th>RAM</th><th>Uptime</th><th>Aksi</th></tr>
             """
             for a, state in app_states.items():
                 up_str = "--:--:--" if state["suspended"] else format_uptime(time.time() - state["start_time"])
                 c_stat = "on" if "🟢" in state["status"] else ("wait" if "🟡" in state["status"] else "off")
                 ram_usg = get_app_ram(a) if not state["suspended"] else "0 MB"
-                btns = f"<button class='btn b-run' onclick=\"action('{a}', 'restart')\">▶️</button> <button class='btn b-stp' onclick=\"action('{a}', 'suspend')\">⏹️</button>"
+                btns = f"<a href='/action?app={a}&type=restart' class='btn b-run'>▶️</a> <a href='/action?app={a}&type=suspend' class='btn b-stp'>⏹️</a>"
                 html += f"<tr><td>{state['usn']}</td><td class='{c_stat}'>{state['status']}</td><td>{ram_usg}</td><td>{up_str}</td><td>{btns}</td></tr>"
-            
             html += "</table></body></html>"; self.wfile.write(html.encode('utf-8')); return
 
         if parsed.path == '/config':
             config["ps_link"] = query.get('ps', [''])[0]; config["discord_link"] = query.get('dc', [''])[0]
             with open(CONFIG_FILE, "w") as f: json.dump(config, f)
-            self.send_response(200); self.end_headers(); return
+            self.send_response(302); self.send_header('Location', '/'); self.end_headers(); return
 
         if parsed.path == '/reset':
             subprocess.run("su -c 'echo 3 > /proc/sys/vm/drop_caches'", shell=True) 
-            self.send_response(200); self.end_headers(); return
+            self.send_response(302); self.send_header('Location', '/'); self.end_headers(); return
 
         if parsed.path == '/action':
             tgt = query.get('app', [''])[0]; act = query.get('type', [''])[0]
@@ -127,7 +115,7 @@ class ArsyServer(BaseHTTPRequestHandler):
                 elif act == 'suspend':
                     app_states[tgt]["suspended"] = True; app_states[tgt]["status"] = "🔴 Stopped"
                     subprocess.run(f"su -c 'am force-stop {tgt}'", shell=True)
-            self.send_response(200); self.end_headers(); return
+            self.send_response(302); self.send_header('Location', '/'); self.end_headers(); return
 
         usn_sig = query.get('usn', [''])[0]
         if usn_sig:
@@ -141,15 +129,15 @@ class ArsyServer(BaseHTTPRequestHandler):
                     app_states[tgt]["last_ping"] = time.time()
         self.send_response(200); self.end_headers(); return
 
-threading.Thread(target=lambda: HTTPServer(('127.0.0.1', PORT), ArsyServer).serve_forever(), daemon=True).start()
-
-# ==========================================
-# 🚀 AUTOMATIS BUKA COMMAND CENTER
-# ==========================================
-time.sleep(1) # Beri jeda 1 detik agar server siap
 try:
-    subprocess.run("su -c 'am start -a android.intent.action.VIEW -d \"http://127.0.0.1:8080\"'", shell=True, stdout=subprocess.DEVNULL)
+    server = HTTPServer(('127.0.0.1', PORT), ArsyServer)
+    print(f"[SUCCESS] Server berjalan di http://127.0.0.1:{PORT}")
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+except Exception as e:
+    print(f"[ERROR] GAGAL START SERVER: {e}")
+
+try:
+    subprocess.run("termux-open-url http://127.0.0.1:8080", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 except: pass
 
-while True:
-    time.sleep(10)
+while True: time.sleep(10)
