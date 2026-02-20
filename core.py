@@ -32,16 +32,22 @@ def get_app_ram(pkg):
     except: return "0 MB"
 
 def launch_app(pkg):
+    # 1. Bersihkan crash secara total & beri jeda istirahat 3 detik
     subprocess.run(f"su -c 'am force-stop {pkg}'", shell=True)
-    time.sleep(2)
+    time.sleep(3) 
+    
     app_states[pkg]["start_time"] = time.time()
     app_states[pkg]["last_ping"] = time.time()
     app_states[pkg]["status"] = "🟡 Menunggu Game..."
     app_states[pkg]["suspended"] = False
     
+    # 2. Perintah start yang lebih memaksa masuk ke depan (Flag 0x10008000)
     ps = config.get("ps_link", "")
-    if ps == "": subprocess.run(f"su -c 'am start -a android.intent.action.MAIN -p {pkg} -f 0x10008000'", shell=True)
-    else: subprocess.run(f"su -c 'am start -a android.intent.action.VIEW -d \"{ps}\" -p {pkg} -f 0x10008000'", shell=True)
+    if ps == "": 
+        # Menggunakan -n untuk menembak langsung Activity utama agar tidak FC
+        subprocess.run(f"su -c 'am start -p {pkg} -c android.intent.category.LAUNCHER -a android.intent.action.MAIN -f 0x10008000'", shell=True)
+    else: 
+        subprocess.run(f"su -c 'am start -a android.intent.action.VIEW -d \"{ps}\" -p {pkg} -f 0x10008000'", shell=True)
 
 def format_uptime(sec):
     h = int(sec // 3600); m = int((sec % 3600) // 60); s = int(sec % 60)
