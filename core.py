@@ -32,15 +32,15 @@ def get_app_ram(pkg):
     except: return "0 MB"
 
 def launch_app(pkg):
-    # 1. Matikan game & tunggu 5 detik (lebih lama agar RAM stabil)
+    # Bersihkan sisa crash lama
     subprocess.run(f"su -c 'am force-stop {pkg}'", shell=True)
-    time.sleep(5) 
+    time.sleep(2)
     
     app_states[pkg]["suspended"] = False
     app_states[pkg]["status"] = "🟡 Menunggu Game..."
     
-    # 2. Gunakan Flag 0x10000000 (FLAG_ACTIVITY_NEW_TASK) saja agar lebih ringan
-    subprocess.run(f"su -c 'am start -n {pkg}/com.roblox.client.MainActivity -f 0x10000000'", shell=True)
+    # Gunakan perintah start standar tanpa flag berat
+    subprocess.run(f"su -c 'monkey -p {pkg} -c android.intent.category.LAUNCHER 1'", shell=True)
 
 def format_uptime(sec):
     h = int(sec // 3600); m = int((sec % 3600) // 60); s = int(sec % 60)
