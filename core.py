@@ -32,30 +32,15 @@ def get_app_ram(pkg):
     except: return "0 MB"
 
 def launch_app(pkg):
-    # 1. Paksa berhenti total dan tunggu 4 detik agar memori bersih
+    # 1. Matikan game & tunggu 5 detik (lebih lama agar RAM stabil)
     subprocess.run(f"su -c 'am force-stop {pkg}'", shell=True)
-    time.sleep(4) 
+    time.sleep(5) 
     
-    app_states[pkg]["start_time"] = time.time()
-    app_states[pkg]["last_ping"] = time.time()
-    app_states[pkg]["status"] = "🟡 Menunggu Game..."
     app_states[pkg]["suspended"] = False
+    app_states[pkg]["status"] = "🟡 Menunggu Game..."
     
-    # 2. Gunakan perintah launch yang lebih dalam untuk Android 10
-    ps = config.get("ps_link", "")
-    if ps == "": 
-        # Perintah ini akan memaksa game naik ke depan secara agresif
-        subprocess.run(f"su -c 'am start -n {pkg}/com.roblox.client.MainActivity -a android.intent.action.MAIN -c android.intent.category.LAUNCHER -f 0x10100000'", shell=True)
-    else: 
-        subprocess.run(f"su -c 'am start -a android.intent.action.VIEW -d \"{ps}\" -p {pkg} -f 0x10100000'", shell=True)
-    
-    # 2. Perintah start yang lebih memaksa masuk ke depan (Flag 0x10008000)
-    ps = config.get("ps_link", "")
-    if ps == "": 
-        # Menggunakan -n untuk menembak langsung Activity utama agar tidak FC
-        subprocess.run(f"su -c 'am start -p {pkg} -c android.intent.category.LAUNCHER -a android.intent.action.MAIN -f 0x10008000'", shell=True)
-    else: 
-        subprocess.run(f"su -c 'am start -a android.intent.action.VIEW -d \"{ps}\" -p {pkg} -f 0x10008000'", shell=True)
+    # 2. Gunakan Flag 0x10000000 (FLAG_ACTIVITY_NEW_TASK) saja agar lebih ringan
+    subprocess.run(f"su -c 'am start -n {pkg}/com.roblox.client.MainActivity -f 0x10000000'", shell=True)
 
 def format_uptime(sec):
     h = int(sec // 3600); m = int((sec % 3600) // 60); s = int(sec % 60)
