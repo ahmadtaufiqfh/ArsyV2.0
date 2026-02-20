@@ -32,14 +32,22 @@ def get_app_ram(pkg):
     except: return "0 MB"
 
 def launch_app(pkg):
-    # 1. Bersihkan crash secara total & beri jeda istirahat 3 detik
+    # 1. Paksa berhenti total dan tunggu 4 detik agar memori bersih
     subprocess.run(f"su -c 'am force-stop {pkg}'", shell=True)
-    time.sleep(3) 
+    time.sleep(4) 
     
     app_states[pkg]["start_time"] = time.time()
     app_states[pkg]["last_ping"] = time.time()
     app_states[pkg]["status"] = "🟡 Menunggu Game..."
     app_states[pkg]["suspended"] = False
+    
+    # 2. Gunakan perintah launch yang lebih dalam untuk Android 10
+    ps = config.get("ps_link", "")
+    if ps == "": 
+        # Perintah ini akan memaksa game naik ke depan secara agresif
+        subprocess.run(f"su -c 'am start -n {pkg}/com.roblox.client.MainActivity -a android.intent.action.MAIN -c android.intent.category.LAUNCHER -f 0x10100000'", shell=True)
+    else: 
+        subprocess.run(f"su -c 'am start -a android.intent.action.VIEW -d \"{ps}\" -p {pkg} -f 0x10100000'", shell=True)
     
     # 2. Perintah start yang lebih memaksa masuk ke depan (Flag 0x10008000)
     ps = config.get("ps_link", "")
