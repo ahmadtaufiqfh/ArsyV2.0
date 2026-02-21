@@ -58,7 +58,6 @@ def get_ram_usage():
     return "N/A"
 
 def deploy_telemetry_lua(packages):
-    # LUA SCRIPT: Notif Minimalis & Penulisan Status Instan
     lua_script = """if not game:IsLoaded() then game.Loaded:Wait() end
 task.wait(2)
 local Players = game:GetService("Players")
@@ -86,15 +85,12 @@ pcall(function()
     task.delay(5, function() sg:Destroy() end)
 end)
 
--- Fungsi penulisan status
 local function sendHeartbeat()
     pcall(function() writefile("arsy_status.txt", usn .. "|" .. tostring(os.time()) .. "|" .. tostring(startTime)) end)
 end
 
--- TULIS INSTAN SEKARANG JUGA (Memperbaiki Bug Offline di awal)
 sendHeartbeat()
 
--- Baru mulai loop 30 detik untuk update selanjutnya
 while task.wait(30) do
     sendHeartbeat()
 end
@@ -108,8 +104,9 @@ end
             f"/sdcard/Android/data/{pkg}/files/gloop/external/autoexec/arsy.lua"
         ]
         
-        w_lower = f"/sdcard/Android/data/{pkg}/files/gloop/workspace"
-        w_upper = f"/sdcard/Android/data/{pkg}/files/gloop/Workspace"
+        # PERBAIKAN: Menambahkan /external/ pada jalur Workspace sesuai screenshot Anda
+        w_lower = f"/sdcard/Android/data/{pkg}/files/gloop/external/workspace"
+        w_upper = f"/sdcard/Android/data/{pkg}/files/gloop/external/Workspace"
         
         os.system(f"su -c 'mkdir -p \"{w_lower}\"'")
         os.system(f"su -c 'mkdir -p \"{w_upper}\"'")
@@ -132,7 +129,8 @@ def get_instances_telemetry(packages):
     current_time = int(time.time()) 
     
     for pkg in packages:
-        read_cmd = f"su -c 'cat /sdcard/Android/data/{pkg}/files/gloop/workspace/arsy_status.txt 2>/dev/null || cat /sdcard/Android/data/{pkg}/files/gloop/Workspace/arsy_status.txt 2>/dev/null'"
+        # PERBAIKAN: Membaca dari jalur /external/Workspace
+        read_cmd = f"su -c 'cat /sdcard/Android/data/{pkg}/files/gloop/external/workspace/arsy_status.txt 2>/dev/null || cat /sdcard/Android/data/{pkg}/files/gloop/external/Workspace/arsy_status.txt 2>/dev/null'"
         
         try:
             output = subprocess.check_output(read_cmd, shell=True).decode('utf-8').strip()
@@ -218,7 +216,7 @@ def run_engine(config):
     time.sleep(2)
     
     launch_to_vip_server(packages, config["vip_link"])
-    time.sleep(20) # Beri waktu ekstra 20 detik agar akun benar-benar masuk server
+    time.sleep(20) 
     
     gc.collect() 
     loop_count = 0
