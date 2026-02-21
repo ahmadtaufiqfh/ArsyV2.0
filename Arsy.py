@@ -58,7 +58,7 @@ def get_ram_usage():
     return "N/A"
 
 def deploy_telemetry_lua(packages):
-    # LUA SCRIPT: UI Minimalis, Tipis, di Atas Tengah Layar
+    # LUA SCRIPT: Notif Minimalis & Penulisan Status Instan
     lua_script = """if not game:IsLoaded() then game.Loaded:Wait() end
 task.wait(2)
 local Players = game:GetService("Players")
@@ -73,21 +73,30 @@ pcall(function()
     
     local tl = Instance.new("TextLabel")
     tl.Parent = sg
-    tl.Size = UDim2.new(0, 200, 0, 30) -- Ukuran sangat kecil dan tipis
-    tl.Position = UDim2.new(0.5, -100, 0, 15) -- Di atas tengah layar
+    tl.Size = UDim2.new(0, 200, 0, 30)
+    tl.Position = UDim2.new(0.5, -100, 0, 15)
     tl.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
     tl.BackgroundTransparency = 0.4
     tl.TextColor3 = Color3.fromRGB(0, 255, 0) 
     tl.TextScaled = false
-    tl.TextSize = 14 -- Huruf font kecil
+    tl.TextSize = 14
     tl.Font = Enum.Font.Code
     tl.Text = "Arsy V2 | " .. usn
     
     task.delay(5, function() sg:Destroy() end)
 end)
 
-while task.wait(30) do
+-- Fungsi penulisan status
+local function sendHeartbeat()
     pcall(function() writefile("arsy_status.txt", usn .. "|" .. tostring(os.time()) .. "|" .. tostring(startTime)) end)
+end
+
+-- TULIS INSTAN SEKARANG JUGA (Memperbaiki Bug Offline di awal)
+sendHeartbeat()
+
+-- Baru mulai loop 30 detik untuk update selanjutnya
+while task.wait(30) do
+    sendHeartbeat()
 end
 """
     with open("temp_arsy.lua", "w") as f:
@@ -99,7 +108,6 @@ end
             f"/sdcard/Android/data/{pkg}/files/gloop/external/autoexec/arsy.lua"
         ]
         
-        # PERBAIKAN: Membuat dan memberi izin pada DUA kemungkinan nama folder Workspace
         w_lower = f"/sdcard/Android/data/{pkg}/files/gloop/workspace"
         w_upper = f"/sdcard/Android/data/{pkg}/files/gloop/Workspace"
         
@@ -124,7 +132,6 @@ def get_instances_telemetry(packages):
     current_time = int(time.time()) 
     
     for pkg in packages:
-        # PERBAIKAN: Menyuruh Termux membaca dari kedua folder (Workspace besar maupun kecil)
         read_cmd = f"su -c 'cat /sdcard/Android/data/{pkg}/files/gloop/workspace/arsy_status.txt 2>/dev/null || cat /sdcard/Android/data/{pkg}/files/gloop/Workspace/arsy_status.txt 2>/dev/null'"
         
         try:
@@ -211,7 +218,7 @@ def run_engine(config):
     time.sleep(2)
     
     launch_to_vip_server(packages, config["vip_link"])
-    time.sleep(15)
+    time.sleep(20) # Beri waktu ekstra 20 detik agar akun benar-benar masuk server
     
     gc.collect() 
     loop_count = 0
@@ -225,7 +232,7 @@ def run_engine(config):
             clear_screen()
             print(log_text)
             print("\r\n[!] Mesin berjalan normal di latar belakang.")
-            print("\r\n[!] Tekan CTRL+C dua kali dengan cepat untuk mematikan bot.")
+            print("\r\n[!] Buka 'New Session' di Termux dan ketik 'pkill python' untuk mematikan.")
             
             send_discord_report(config["webhook_url"], log_text)
             
@@ -257,4 +264,47 @@ def main():
         print("[1] Jalankan")
         print("[2] Link Private server")
         print("[3] Link Discord")
-        print
+        print("[0] Keluar")
+        print("====================================")
+        
+        print(f"\n* VIP Link: {'[Terisi]' if config.get('vip_link') else '[KOSONG]'}")
+        print(f"* Discord:  {'[Terisi]' if config.get('webhook_url') else '[KOSONG]'}")
+        
+        choice = input("\nPilih Menu (0-3): ").strip()
+        
+        if choice == '1':
+            if not config.get('vip_link') or not config.get('webhook_url'):
+                print("\n[!] Peringatan: Anda harus mengisi Link Private Server dan Discord terlebih dahulu!")
+                time.sleep(2)
+            else:
+                run_engine(config)
+                break 
+        elif choice == '2':
+            clear_screen()
+            print("=== SETUP VIP LINK ===")
+            print(f"Link lama: {config.get('vip_link', 'Belum ada')}")
+            new_vip = input("\nMasukkan Link VIP baru:\n> ").strip()
+            if new_vip:
+                config['vip_link'] = new_vip
+                save_config(config)
+                print("\n[+] Berhasil Disimpan!")
+                time.sleep(1.5)
+        elif choice == '3':
+            clear_screen()
+            print("=== SETUP DISCORD WEBHOOK ===")
+            print(f"Link lama: {config.get('webhook_url', 'Belum ada')}")
+            new_web = input("\nMasukkan Webhook baru:\n> ").strip()
+            if new_web:
+                config['webhook_url'] = new_web
+                save_config(config)
+                print("\n[+] Berhasil Disimpan!")
+                time.sleep(1.5)
+        elif choice == '0':
+            clear_screen()
+            break
+        else:
+            print("\n[!] Pilihan tidak valid.")
+            time.sleep(1)
+
+if __name__ == "__main__":
+    main()
