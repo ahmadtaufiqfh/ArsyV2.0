@@ -60,11 +60,24 @@ def get_ram_usage():
 def deploy_telemetry_lua(packages):
     lua_script = """
 repeat task.wait() until game:IsLoaded()
+task.wait(3) -- Memberi jeda 3 detik agar UI Roblox selesai dimuat
+
 local Players = game:GetService("Players")
+local StarterGui = game:GetService("StarterGui")
 
 local usn = Players.LocalPlayer and Players.LocalPlayer.Name or "Unknown"
 local startTime = os.time()
 
+-- Memunculkan Notifikasi Pop-up di Pojok Kanan Bawah Game
+pcall(function()
+    StarterGui:SetCore("SendNotification", {
+        Title = "🍃 Arsy V2.0",
+        Text = "Sensor Heartbeat Aktif! Terhubung ke Termux.",
+        Duration = 5 -- Notifikasi akan hilang sendiri dalam 5 detik
+    })
+end)
+
+-- Loop Detak Jantung
 while task.wait(30) do
     pcall(function()
         writefile("arsy_status.txt", usn .. "|" .. tostring(os.time()) .. "|" .. tostring(startTime))
