@@ -58,37 +58,38 @@ def get_ram_usage():
     return "N/A"
 
 def deploy_telemetry_lua(packages):
-    lua_script = """
-repeat task.wait() until game:IsLoaded()
-task.wait(3) -- Memberi jeda 3 detik agar UI Roblox selesai dimuat
-
+    """Metode Baru: Copy file via lokal Termux untuk menghindari bug echo root"""
+    lua_script = """repeat task.wait() until game:IsLoaded()
+task.wait(3)
 local Players = game:GetService("Players")
 local StarterGui = game:GetService("StarterGui")
-
 local usn = Players.LocalPlayer and Players.LocalPlayer.Name or "Unknown"
 local startTime = os.time()
 
--- Memunculkan Notifikasi Pop-up di Pojok Kanan Bawah Game
 pcall(function()
-    StarterGui:SetCore("SendNotification", {
-        Title = "🍃 Arsy V2.0",
-        Text = "Sensor Heartbeat Aktif! Terhubung ke Termux.",
-        Duration = 5 -- Notifikasi akan hilang sendiri dalam 5 detik
-    })
+    StarterGui:SetCore("SendNotification", {Title = "🍃 Arsy V2.0", Text = "Sensor Heartbeat Aktif!", Duration = 5})
 end)
 
--- Loop Detak Jantung
 while task.wait(30) do
-    pcall(function()
-        writefile("arsy_status.txt", usn .. "|" .. tostring(os.time()) .. "|" .. tostring(startTime))
-    end)
+    pcall(function() writefile("arsy_status.txt", usn .. "|" .. tostring(os.time()) .. "|" .. tostring(startTime)) end)
 end
 """
+    # 1. Tulis ke file sementara di dalam Termux
+    with open("temp_arsy.lua", "w") as f:
+        f.write(lua_script)
+
+    # 2. Pindahkan file tersebut ke folder Delta menggunakan cp (Copy)
     for pkg in packages:
         autoexec_path = f"/sdcard/Android/data/{pkg}/files/gloop/external/Autoexecute/arsy.lua"
-        os.system(f"su -c 'mkdir -p \"$(dirname \"{autoexec_path}\")\" && echo \"{lua_script}\" > \"{autoexec_path}\"'")
+        os.system(f"su -c 'mkdir -p \"$(dirname \"{autoexec_path}\")\"'")
+        os.system(f"su -c 'cp temp_arsy.lua \"{autoexec_path}\"'")
+        
         status_path = f"/sdcard/Android/data/{pkg}/files/gloop/workspace/arsy_status.txt"
         os.system(f"su -c 'rm -f \"{status_path}\"'")
+        
+    # 3. Hapus file sementara
+    if os.path.exists("temp_arsy.lua"):
+        os.remove("temp_arsy.lua")
 
 def get_instances_telemetry(packages):
     instances = []
@@ -135,7 +136,6 @@ def clean_system_cache():
 
 def generate_log_text(instances, total_cleans):
     ram_usage = get_ram_usage()
-    
     log_text = "ARSY MONITOR LOG\n\n"
     log_text += f"Ram ussage {ram_usage}\n"
     log_text += f"Clean Cycle  {total_cleans} X\n\n"
@@ -150,7 +150,6 @@ def send_discord_report(webhook_url, log_text):
         return
         
     discord_text = log_text.replace("ARSY MONITOR LOG", "**ARSY MONITOR LOG**")
-    
     embed = {
         "description": discord_text,
         "color": 5763719,
@@ -160,14 +159,16 @@ def send_discord_report(webhook_url, log_text):
     try:
         req = urllib.request.Request(webhook_url, method="POST")
         req.add_header('Content-Type', 'application/json')
+        # Wajib ditambahkan agar tidak diblokir Discord
+        req.add_header('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)') 
         data = json.dumps({"embeds": [embed]}).encode('utf-8')
         urllib.request.urlopen(req, data=data, timeout=5)
-    except:
-        pass
+    except Exception as e:
+        # Menulis error ke log termux jika discord masih gagal
+        print(f"[!] Gagal mengirim Discord: {e}")
 
 def run_engine(config):
     packages = get_roblox_packages()
-    
     if not packages:
         print("\n[❌] Tidak ada aplikasi Roblox yang terinstal!")
         time.sleep(2)
@@ -183,20 +184,16 @@ def run_engine(config):
     
     launch_to_vip_server(packages, config["vip_link"])
     
+    # Memberi waktu 15 detik untuk game loading sebelum laporan pertama
+    time.sleep(15)
+    
     gc.collect() 
     loop_count = 0
     total_cleans = 0 
 
     while True:
         try:
-            time.sleep(600) 
-            loop_count += 1
-            
-            if loop_count >= 3:
-                clean_system_cache()
-                total_cleans += 1 
-                loop_count = 0 
-                
+            # LAPOR DULU...
             instances_data = get_instances_telemetry(packages)
             log_text = generate_log_text(instances_data, total_cleans)
             
@@ -211,15 +208,23 @@ def run_engine(config):
             del log_text
             gc.collect()
             
+            # ...BARU TIDUR 10 MENIT
+            time.sleep(600) 
+            loop_count += 1
+            
+            if loop_count >= 3:
+                clean_system_cache()
+                total_cleans += 1 
+                loop_count = 0 
+            
         except KeyboardInterrupt:
             print("\n[!] Peringatan: Input terdeteksi. Skrip menahan diri...")
             time.sleep(2)
-        except Exception:
+        except Exception as e:
             pass
 
 def main():
     config = load_config()
-    
     while True:
         clear_screen()
         print("====================================")
@@ -234,7 +239,6 @@ def main():
         print(f"\n* VIP Link: {'[Terisi]' if config.get('vip_link') else '[KOSONG]'}")
         print(f"* Discord:  {'[Terisi]' if config.get('webhook_url') else '[KOSONG]'}")
         
-        # PERBAIKAN: Tambah .strip() agar spasi otomatis dari keyboard HP dihapus
         choice = input("\nPilih Menu (0-3): ").strip()
         
         if choice == '1':
@@ -245,20 +249,20 @@ def main():
                 run_engine(config)
                 break 
         elif choice == '2':
-            clear_screen() # PERBAIKAN: Bersihkan layar agar fokus mengisi link
+            clear_screen()
             print("=== SETUP VIP LINK ===")
             print(f"Link lama: {config.get('vip_link', 'Belum ada')}")
-            new_vip = input("\nMasukkan Link VIP baru (Kosongkan lalu Enter untuk batal):\n> ").strip()
+            new_vip = input("\nMasukkan Link VIP baru:\n> ").strip()
             if new_vip:
                 config['vip_link'] = new_vip
                 save_config(config)
                 print("\n[+] Berhasil Disimpan!")
                 time.sleep(1.5)
         elif choice == '3':
-            clear_screen() # PERBAIKAN: Bersihkan layar agar fokus mengisi link
+            clear_screen()
             print("=== SETUP DISCORD WEBHOOK ===")
             print(f"Link lama: {config.get('webhook_url', 'Belum ada')}")
-            new_web = input("\nMasukkan Webhook baru (Kosongkan lalu Enter untuk batal):\n> ").strip()
+            new_web = input("\nMasukkan Webhook baru:\n> ").strip()
             if new_web:
                 config['webhook_url'] = new_web
                 save_config(config)
