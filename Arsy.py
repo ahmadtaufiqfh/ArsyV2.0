@@ -58,14 +58,13 @@ def get_ram_usage():
     return "N/A"
 
 def deploy_telemetry_lua(packages):
-    # LUA SCRIPT: Dengan Custom GUI di TENGAH LAYAR
+    # LUA SCRIPT: UI Minimalis, Tipis, di Atas Tengah Layar
     lua_script = """if not game:IsLoaded() then game.Loaded:Wait() end
 task.wait(2)
 local Players = game:GetService("Players")
 local usn = Players.LocalPlayer and Players.LocalPlayer.Name or "Unknown"
 local startTime = os.time()
 
--- Membuat Custom UI di Tengah Layar
 pcall(function()
     local sg = Instance.new("ScreenGui")
     sg.Name = "ArsyNotif"
@@ -74,47 +73,48 @@ pcall(function()
     
     local tl = Instance.new("TextLabel")
     tl.Parent = sg
-    tl.Size = UDim2.new(0, 450, 0, 80)
-    tl.Position = UDim2.new(0.5, -225, 0.5, -40) -- Posisi mutlak di tengah (Center)
+    tl.Size = UDim2.new(0, 200, 0, 30) -- Ukuran sangat kecil dan tipis
+    tl.Position = UDim2.new(0.5, -100, 0, 15) -- Di atas tengah layar
     tl.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-    tl.BackgroundTransparency = 0.3
-    tl.TextColor3 = Color3.fromRGB(0, 255, 0) -- Warna Hijau
-    tl.TextScaled = true
-    tl.Font = Enum.Font.SourceSansBold
-    tl.Text = "🍃 ARSY V2.0 SENSOR AKTIF! | " .. usn
+    tl.BackgroundTransparency = 0.4
+    tl.TextColor3 = Color3.fromRGB(0, 255, 0) 
+    tl.TextScaled = false
+    tl.TextSize = 14 -- Huruf font kecil
+    tl.Font = Enum.Font.Code
+    tl.Text = "Arsy V2 | " .. usn
     
-    -- Hapus UI setelah 6 detik
-    task.delay(6, function() sg:Destroy() end)
+    task.delay(5, function() sg:Destroy() end)
 end)
 
--- Detak Jantung
 while task.wait(30) do
     pcall(function() writefile("arsy_status.txt", usn .. "|" .. tostring(os.time()) .. "|" .. tostring(startTime)) end)
 end
 """
-    # Tulis ke file lokal termux
     with open("temp_arsy.lua", "w") as f:
         f.write(lua_script)
 
     for pkg in packages:
-        # Kita tembak 2 nama folder executor yang paling umum sekaligus
         auto_paths = [
             f"/sdcard/Android/data/{pkg}/files/gloop/external/Autoexecute/arsy.lua",
             f"/sdcard/Android/data/{pkg}/files/gloop/external/autoexec/arsy.lua"
         ]
-        workspace_path = f"/sdcard/Android/data/{pkg}/files/gloop/workspace"
         
-        os.system(f"su -c 'mkdir -p \"{workspace_path}\"'")
-        os.system(f"su -c 'chmod 777 \"{workspace_path}\"'")
+        # PERBAIKAN: Membuat dan memberi izin pada DUA kemungkinan nama folder Workspace
+        w_lower = f"/sdcard/Android/data/{pkg}/files/gloop/workspace"
+        w_upper = f"/sdcard/Android/data/{pkg}/files/gloop/Workspace"
+        
+        os.system(f"su -c 'mkdir -p \"{w_lower}\"'")
+        os.system(f"su -c 'mkdir -p \"{w_upper}\"'")
+        os.system(f"su -c 'chmod 777 \"{w_lower}\"'")
+        os.system(f"su -c 'chmod 777 \"{w_upper}\"'")
         
         for a_path in auto_paths:
             os.system(f"su -c 'mkdir -p \"$(dirname \"{a_path}\")\"'")
-            # METODE BARU: Menggunakan 'tee' agar menembus blokir file Android 11+
             os.system(f"cat temp_arsy.lua | su -c 'tee \"{a_path}\" > /dev/null'")
             os.system(f"su -c 'chmod 777 \"{a_path}\"'")
             
-        status_path = f"{workspace_path}/arsy_status.txt"
-        os.system(f"su -c 'rm -f \"{status_path}\"'")
+        os.system(f"su -c 'rm -f \"{w_lower}/arsy_status.txt\"'")
+        os.system(f"su -c 'rm -f \"{w_upper}/arsy_status.txt\"'")
         
     if os.path.exists("temp_arsy.lua"):
         os.remove("temp_arsy.lua")
@@ -124,9 +124,11 @@ def get_instances_telemetry(packages):
     current_time = int(time.time()) 
     
     for pkg in packages:
-        workspace_path = f"/sdcard/Android/data/{pkg}/files/gloop/workspace/arsy_status.txt"
+        # PERBAIKAN: Menyuruh Termux membaca dari kedua folder (Workspace besar maupun kecil)
+        read_cmd = f"su -c 'cat /sdcard/Android/data/{pkg}/files/gloop/workspace/arsy_status.txt 2>/dev/null || cat /sdcard/Android/data/{pkg}/files/gloop/Workspace/arsy_status.txt 2>/dev/null'"
+        
         try:
-            output = subprocess.check_output(f"su -c 'cat \"{workspace_path}\"'", shell=True, stderr=subprocess.DEVNULL).decode('utf-8').strip()
+            output = subprocess.check_output(read_cmd, shell=True).decode('utf-8').strip()
             if "|" in output:
                 parts = output.split("|")
                 usn = parts[0]
@@ -255,47 +257,4 @@ def main():
         print("[1] Jalankan")
         print("[2] Link Private server")
         print("[3] Link Discord")
-        print("[0] Keluar")
-        print("====================================")
-        
-        print(f"\n* VIP Link: {'[Terisi]' if config.get('vip_link') else '[KOSONG]'}")
-        print(f"* Discord:  {'[Terisi]' if config.get('webhook_url') else '[KOSONG]'}")
-        
-        choice = input("\nPilih Menu (0-3): ").strip()
-        
-        if choice == '1':
-            if not config.get('vip_link') or not config.get('webhook_url'):
-                print("\n[!] Peringatan: Anda harus mengisi Link Private Server dan Discord terlebih dahulu!")
-                time.sleep(2)
-            else:
-                run_engine(config)
-                break 
-        elif choice == '2':
-            clear_screen()
-            print("=== SETUP VIP LINK ===")
-            print(f"Link lama: {config.get('vip_link', 'Belum ada')}")
-            new_vip = input("\nMasukkan Link VIP baru:\n> ").strip()
-            if new_vip:
-                config['vip_link'] = new_vip
-                save_config(config)
-                print("\n[+] Berhasil Disimpan!")
-                time.sleep(1.5)
-        elif choice == '3':
-            clear_screen()
-            print("=== SETUP DISCORD WEBHOOK ===")
-            print(f"Link lama: {config.get('webhook_url', 'Belum ada')}")
-            new_web = input("\nMasukkan Webhook baru:\n> ").strip()
-            if new_web:
-                config['webhook_url'] = new_web
-                save_config(config)
-                print("\n[+] Berhasil Disimpan!")
-                time.sleep(1.5)
-        elif choice == '0':
-            clear_screen()
-            break
-        else:
-            print("\n[!] Pilihan tidak valid.")
-            time.sleep(1)
-
-if __name__ == "__main__":
-    main()
+        print
