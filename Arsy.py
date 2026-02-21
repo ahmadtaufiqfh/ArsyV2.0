@@ -58,7 +58,6 @@ def get_ram_usage():
     return "N/A"
 
 def deploy_telemetry_lua(packages):
-    # LUA SCRIPT: Menampilkan Username Full (Tanpa Bintang) di dalam Game UI
     lua_script = """if not game:IsLoaded() then game.Loaded:Wait() end
 task.wait(2)
 local Players = game:GetService("Players")
@@ -81,7 +80,7 @@ pcall(function()
     tl.TextScaled = false
     tl.TextSize = 14
     tl.Font = Enum.Font.Code
-    tl.Text = "Arsy V2 | " .. usn
+    tl.Text = "Arsy V2 | " .. string.sub(usn, 1, 3) .. "***" .. string.sub(usn, -2)
     
     task.delay(5, function() sg:Destroy() end)
 end)
@@ -100,27 +99,31 @@ end
         f.write(lua_script)
 
     for pkg in packages:
+        # Sapu Jagat Autoexec
         auto_paths = [
             f"/sdcard/Android/data/{pkg}/files/gloop/external/Autoexecute/arsy.lua",
-            f"/sdcard/Android/data/{pkg}/files/gloop/external/autoexec/arsy.lua"
+            f"/sdcard/Android/data/{pkg}/files/gloop/external/autoexec/arsy.lua",
+            f"/sdcard/Android/data/{pkg}/files/gloop/autoexec/arsy.lua"
         ]
         
-        w_lower = f"/sdcard/Android/data/{pkg}/files/gloop/external/workspace"
-        w_upper = f"/sdcard/Android/data/{pkg}/files/gloop/external/Workspace"
+        # Sapu Jagat Workspace
+        workspaces = [
+            f"/sdcard/Android/data/{pkg}/files/gloop/workspace",
+            f"/sdcard/Android/data/{pkg}/files/gloop/Workspace",
+            f"/sdcard/Android/data/{pkg}/files/gloop/external/workspace",
+            f"/sdcard/Android/data/{pkg}/files/gloop/external/Workspace"
+        ]
         
-        os.system(f"su -c 'mkdir -p \"{w_lower}\"'")
-        os.system(f"su -c 'mkdir -p \"{w_upper}\"'")
-        os.system(f"su -c 'chmod 777 \"{w_lower}\"'")
-        os.system(f"su -c 'chmod 777 \"{w_upper}\"'")
-        
+        for w in workspaces:
+            os.system(f"su -c 'mkdir -p \"{w}\"'")
+            os.system(f"su -c 'chmod 777 \"{w}\"'")
+            os.system(f"su -c 'rm -f \"{w}/arsy_status.txt\"'")
+            
         for a_path in auto_paths:
             os.system(f"su -c 'mkdir -p \"$(dirname \"{a_path}\")\"'")
             os.system(f"cat temp_arsy.lua | su -c 'tee \"{a_path}\" > /dev/null'")
             os.system(f"su -c 'chmod 777 \"{a_path}\"'")
             
-        os.system(f"su -c 'rm -f \"{w_lower}/arsy_status.txt\"'")
-        os.system(f"su -c 'rm -f \"{w_upper}/arsy_status.txt\"'")
-        
     if os.path.exists("temp_arsy.lua"):
         os.remove("temp_arsy.lua")
 
@@ -129,7 +132,8 @@ def get_instances_telemetry(packages):
     current_time = int(time.time()) 
     
     for pkg in packages:
-        read_cmd = f"su -c 'cat /sdcard/Android/data/{pkg}/files/gloop/external/workspace/arsy_status.txt 2>/dev/null || cat /sdcard/Android/data/{pkg}/files/gloop/external/Workspace/arsy_status.txt 2>/dev/null'"
+        # Membaca dari SEMUA kemungkinan folder Workspace Delta
+        read_cmd = f"su -c 'cat /sdcard/Android/data/{pkg}/files/gloop/workspace/arsy_status.txt 2>/dev/null || cat /sdcard/Android/data/{pkg}/files/gloop/Workspace/arsy_status.txt 2>/dev/null || cat /sdcard/Android/data/{pkg}/files/gloop/external/workspace/arsy_status.txt 2>/dev/null || cat /sdcard/Android/data/{pkg}/files/gloop/external/Workspace/arsy_status.txt 2>/dev/null'"
         
         try:
             output = subprocess.check_output(read_cmd, shell=True).decode('utf-8').strip()
@@ -169,36 +173,32 @@ def clean_system_cache():
     os.system("su -c 'sync; echo 3 > /proc/sys/vm/drop_caches' > /dev/null 2>&1")
 
 def generate_log_text(instances, total_cleans):
-    """Membagi log menjadi dua format: Khusus Termux dan Khusus Discord"""
     ram_usage = get_ram_usage()
     
-    # 1. Format Log untuk Layar Termux
     termux_text = "ARSY MONITOR LOG\r\n\r\n"
     termux_text += f"Ram ussage {ram_usage}\r\n"
     termux_text += f"Clean Cycle  {total_cleans} X\r\n\r\n"
     
-    # 2. Format Log untuk Discord
     discord_text = "**ARSY MONITOR LOG**\n\n"
     discord_text += f"Ram ussage {ram_usage}\n"
     discord_text += f"Clean Cycle  {total_cleans} X\n\n"
     
-    # MENGHITUNG PENYELARASAN (ALIGNMENT)
     max_usn_len = 0
     for inst in instances:
         if len(inst['usn']) > max_usn_len:
             max_usn_len = len(inst['usn'])
             
-    # Menerapkan padding dan 10 spasi absolut
     for inst in instances:
-        # Untuk Termux (Biasa)
         padded_usn_t = inst['usn'].ljust(max_usn_len)
         termux_text += f"{inst['icon']} {padded_usn_t}          ({inst['uptime']})\r\n"
         
-        # Untuk Discord (Tertutup Kotak Spoiler || dan Spasi Kebal Potong)
         padded_usn_d = inst['usn'].ljust(max_usn_len)
-        # Menggunakan Non-Breaking Space (\u00A0) agar Discord tidak menghapus spasi
-        discord_text += f"{inst['icon']} ||{padded_usn_d}||\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0({inst['uptime']})\n"
-        
+        # Jangan gunakan blok spoiler untuk status awal agar terlihat rapi
+        if inst['usn'] in ["Login...", "Menunggu...", "Unknown"]:
+            discord_text += f"{inst['icon']} {padded_usn_d}\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0({inst['uptime']})\n"
+        else:
+            discord_text += f"{inst['icon']} ||{padded_usn_d}||\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0({inst['uptime']})\n"
+            
     return termux_text, discord_text
 
 def send_discord_report(webhook_url, discord_text):
@@ -218,7 +218,7 @@ def send_discord_report(webhook_url, discord_text):
         data = json.dumps({"embeds": [embed]}).encode('utf-8')
         urllib.request.urlopen(req, data=data, timeout=5)
     except Exception as e:
-        print(f"\r\n[!] Gagal mengirim Discord: {e}")
+        pass
 
 def run_engine(config):
     packages = get_roblox_packages()
@@ -236,7 +236,15 @@ def run_engine(config):
     time.sleep(2)
     
     launch_to_vip_server(packages, config["vip_link"])
-    time.sleep(20) 
+    
+    # SISTEM SMART WAIT: Menunggu game benar-benar masuk server (Maks 60 detik)
+    clear_screen()
+    print("\r\n[+] Menunggu Roblox memuat dan sensor aktif (Maks 60 detik)...")
+    for _ in range(12):
+        time.sleep(5)
+        instances_data = get_instances_telemetry(packages)
+        if any(inst['icon'] == "🟢" for inst in instances_data):
+            break # Jika sudah ada yang online, langsung lanjut kirim laporan!
     
     gc.collect() 
     loop_count = 0
@@ -245,16 +253,14 @@ def run_engine(config):
     while True:
         try:
             instances_data = get_instances_telemetry(packages)
-            
-            # MEMISAHKAN LOG TERMUX DAN DISCORD
             termux_log, discord_log = generate_log_text(instances_data, total_cleans)
             
             clear_screen()
-            print(termux_log) # Print khusus format Termux
+            print(termux_log) 
             print("\r\n[!] Mesin berjalan normal di latar belakang.")
             print("\r\n[!] Buka 'New Session' di Termux dan ketik 'pkill python' untuk mematikan.")
             
-            send_discord_report(config["webhook_url"], discord_log) # Kirim khusus format Discord
+            send_discord_report(config["webhook_url"], discord_log) 
             
             del instances_data
             del termux_log
