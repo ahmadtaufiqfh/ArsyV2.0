@@ -6,7 +6,6 @@ import urllib.request
 import urllib.error
 import gc
 
-# Gunakan nama config.json agar sesuai dengan .gitignore di GitHub
 CONFIG_FILE = "config.json"
 
 def clear_screen():
@@ -23,14 +22,12 @@ def save_config(config):
         json.dump(config, f, indent=4)
 
 def go_to_home_screen():
-    """Menyembunyikan Termux ke latar belakang (kembali ke Home Screen)"""
     print("\n[+] Menyembunyikan Termux ke latar belakang...")
     time.sleep(1)
     os.system("su -c 'am start -a android.intent.action.MAIN -c android.intent.category.HOME > /dev/null 2>&1'")
     time.sleep(2)
 
 def get_roblox_packages():
-    """Mendeteksi semua aplikasi Roblox yang terinstal di Android"""
     packages = []
     try:
         output = subprocess.check_output("su -c 'pm list packages'", shell=True).decode('utf-8')
@@ -42,7 +39,6 @@ def get_roblox_packages():
     return packages
 
 def get_ram_usage():
-    """Membaca RAM langsung dari kernel Android (Hemat Memori Termux)"""
     try:
         output = subprocess.check_output("su -c 'cat /proc/meminfo'", shell=True).decode('utf-8')
         mem_total = 0
@@ -62,7 +58,6 @@ def get_ram_usage():
     return "N/A"
 
 def deploy_telemetry_lua(packages):
-    """Menyuntikkan Sensor Detak Jantung ke Folder Delta Lite"""
     lua_script = """
 repeat task.wait() until game:IsLoaded()
 local Players = game:GetService("Players")
@@ -70,7 +65,6 @@ local Players = game:GetService("Players")
 local usn = Players.LocalPlayer and Players.LocalPlayer.Name or "Unknown"
 local startTime = os.time()
 
--- Heartbeat setiap 30 detik (Sangat ringan untuk CPU)
 while task.wait(30) do
     pcall(function()
         writefile("arsy_status.txt", usn .. "|" .. tostring(os.time()) .. "|" .. tostring(startTime))
@@ -78,16 +72,12 @@ while task.wait(30) do
 end
 """
     for pkg in packages:
-        # Jalur injeksi otomatis ke folder external Delta
         autoexec_path = f"/sdcard/Android/data/{pkg}/files/gloop/external/Autoexecute/arsy.lua"
         os.system(f"su -c 'mkdir -p \"$(dirname \"{autoexec_path}\")\" && echo \"{lua_script}\" > \"{autoexec_path}\"'")
-        
-        # Hapus file status lama agar tidak ada false-positive saat start awal
         status_path = f"/sdcard/Android/data/{pkg}/files/gloop/workspace/arsy_status.txt"
         os.system(f"su -c 'rm -f \"{status_path}\"'")
 
 def get_instances_telemetry(packages):
-    """Membaca detak jantung dan menghitung Uptime"""
     instances = []
     current_time = int(time.time()) 
     
@@ -101,13 +91,11 @@ def get_instances_telemetry(packages):
                 lua_time = int(parts[1])
                 start_time = int(parts[2]) if len(parts) > 2 else lua_time
                 
-                # Hitung Uptime
                 uptime_sec = current_time - start_time
                 hours, remainder = divmod(uptime_sec, 3600)
                 minutes, seconds = divmod(remainder, 60)
                 uptime_str = f"{hours:02d}h {minutes:02d}m {seconds:02d}s"
                 
-                # Toleransi detak jantung 90 detik
                 if current_time - lua_time > 90:
                     status_icon = "🔴"
                     uptime_str = "Offline"
@@ -123,19 +111,16 @@ def get_instances_telemetry(packages):
     return instances
 
 def launch_to_vip_server(packages, vip_link):
-    """Meluncurkan Roblox langsung ke Private Server via Intent"""
     for pkg in packages:
         intent_command = f"su -c 'am start -a android.intent.action.VIEW -d \"{vip_link}\" {pkg}'"
         os.system(intent_command)
-        time.sleep(10) # Jeda 10 detik antar akun agar CPU Redfinger stabil
+        time.sleep(10)
 
 def clean_system_cache():
-    """Membersihkan RAM tingkat Kernel Android"""
     os.system("su -c 'am kill-all' > /dev/null 2>&1")
     os.system("su -c 'sync; echo 3 > /proc/sys/vm/drop_caches' > /dev/null 2>&1")
 
 def generate_log_text(instances, total_cleans):
-    """Merakit teks log untuk layar Termux"""
     ram_usage = get_ram_usage()
     
     log_text = "ARSY MONITOR LOG\n\n"
@@ -148,11 +133,9 @@ def generate_log_text(instances, total_cleans):
     return log_text
 
 def send_discord_report(webhook_url, log_text):
-    """Mengirim log ke Discord menggunakan module bawaan urllib"""
     if not webhook_url or "discord.com" not in webhook_url:
         return
         
-    # Tambahkan format Bold (**) khusus untuk estetika Discord
     discord_text = log_text.replace("ARSY MONITOR LOG", "**ARSY MONITOR LOG**")
     
     embed = {
@@ -170,7 +153,6 @@ def send_discord_report(webhook_url, log_text):
         pass
 
 def run_engine(config):
-    """Mesin utama 24/7 AFK"""
     packages = get_roblox_packages()
     
     if not packages:
@@ -178,10 +160,8 @@ def run_engine(config):
         time.sleep(2)
         return
 
-    # 1. Bawa Termux ke Layar Utama (Home Screen)
     go_to_home_screen()
     
-    # 2. Persiapan Bersih
     for pkg in packages:
         os.system(f"su -c 'am force-stop {pkg}'")
     
@@ -194,43 +174,34 @@ def run_engine(config):
     loop_count = 0
     total_cleans = 0 
 
-    # 3. Siklus Latar Belakang (Anti-Ghost Touch)
     while True:
         try:
-            # Tertidur pulas selama 10 Menit
             time.sleep(600) 
             loop_count += 1
             
-            # Setiap 30 menit (Loop ke-3), lakukan sapu bersih RAM
             if loop_count >= 3:
                 clean_system_cache()
                 total_cleans += 1 
                 loop_count = 0 
                 
-            # Ambil data dan bentuk log
             instances_data = get_instances_telemetry(packages)
             log_text = generate_log_text(instances_data, total_cleans)
             
-            # Tampilkan di Termux (Berjaga-jaga jika Termux dibuka kembali)
             clear_screen()
             print(log_text)
             print("\n[!] Mesin berjalan normal di latar belakang.")
             print("[!] Tekan CTRL+C dua kali dengan cepat untuk mematikan bot.")
             
-            # Kirim ke Discord
             send_discord_report(config["webhook_url"], log_text)
             
-            # Paksa pembuangan sampah memori Termux
             del instances_data
             del log_text
             gc.collect()
             
         except KeyboardInterrupt:
-            # Mencegah Termux mati karena salah pencet
             print("\n[!] Peringatan: Input terdeteksi. Skrip menahan diri...")
             time.sleep(2)
         except Exception:
-            # Abaikan jika ada error pembacaan sistem dan lanjut AFK
             pass
 
 def main():
@@ -247,40 +218,44 @@ def main():
         print("[0] Keluar")
         print("====================================")
         
-        # Indikator status pengisian
-        print(f"\n* VIP Link: {'[Terisi]' if config['vip_link'] else '[KOSONG]'}")
-        print(f"* Discord:  {'[Terisi]' if config['webhook_url'] else '[KOSONG]'}")
+        print(f"\n* VIP Link: {'[Terisi]' if config.get('vip_link') else '[KOSONG]'}")
+        print(f"* Discord:  {'[Terisi]' if config.get('webhook_url') else '[KOSONG]'}")
         
-        choice = input("\nPilih Menu (0-3): ")
+        # PERBAIKAN: Tambah .strip() agar spasi otomatis dari keyboard HP dihapus
+        choice = input("\nPilih Menu (0-3): ").strip()
         
         if choice == '1':
-            if not config['vip_link'] or not config['webhook_url']:
+            if not config.get('vip_link') or not config.get('webhook_url'):
                 print("\n[!] Peringatan: Anda harus mengisi Link Private Server dan Discord terlebih dahulu!")
                 time.sleep(2)
             else:
                 run_engine(config)
                 break 
         elif choice == '2':
-            print(f"\nLink lama: {config['vip_link']}")
-            new_vip = input("Masukkan Link VIP baru: ")
-            if new_vip.strip():
-                config['vip_link'] = new_vip.strip()
+            clear_screen() # PERBAIKAN: Bersihkan layar agar fokus mengisi link
+            print("=== SETUP VIP LINK ===")
+            print(f"Link lama: {config.get('vip_link', 'Belum ada')}")
+            new_vip = input("\nMasukkan Link VIP baru (Kosongkan lalu Enter untuk batal):\n> ").strip()
+            if new_vip:
+                config['vip_link'] = new_vip
                 save_config(config)
-                print("[+] Disimpan!")
-                time.sleep(1)
+                print("\n[+] Berhasil Disimpan!")
+                time.sleep(1.5)
         elif choice == '3':
-            print(f"\nLink lama: {config['webhook_url']}")
-            new_web = input("Masukkan Webhook baru: ")
-            if new_web.strip():
-                config['webhook_url'] = new_web.strip()
+            clear_screen() # PERBAIKAN: Bersihkan layar agar fokus mengisi link
+            print("=== SETUP DISCORD WEBHOOK ===")
+            print(f"Link lama: {config.get('webhook_url', 'Belum ada')}")
+            new_web = input("\nMasukkan Webhook baru (Kosongkan lalu Enter untuk batal):\n> ").strip()
+            if new_web:
+                config['webhook_url'] = new_web
                 save_config(config)
-                print("[+] Disimpan!")
-                time.sleep(1)
+                print("\n[+] Berhasil Disimpan!")
+                time.sleep(1.5)
         elif choice == '0':
             clear_screen()
             break
         else:
-            print("Pilihan tidak valid.")
+            print("\n[!] Pilihan tidak valid.")
             time.sleep(1)
 
 if __name__ == "__main__":
