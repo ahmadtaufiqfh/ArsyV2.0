@@ -58,6 +58,7 @@ def get_ram_usage():
     return "N/A"
 
 def deploy_telemetry_lua(packages):
+    # LUA SCRIPT: Menampilkan Username Full (Tanpa Bintang) di dalam Game UI
     lua_script = """if not game:IsLoaded() then game.Loaded:Wait() end
 task.wait(2)
 local Players = game:GetService("Players")
@@ -104,7 +105,6 @@ end
             f"/sdcard/Android/data/{pkg}/files/gloop/external/autoexec/arsy.lua"
         ]
         
-        # PERBAIKAN: Menambahkan /external/ pada jalur Workspace sesuai screenshot Anda
         w_lower = f"/sdcard/Android/data/{pkg}/files/gloop/external/workspace"
         w_upper = f"/sdcard/Android/data/{pkg}/files/gloop/external/Workspace"
         
@@ -129,7 +129,6 @@ def get_instances_telemetry(packages):
     current_time = int(time.time()) 
     
     for pkg in packages:
-        # PERBAIKAN: Membaca dari jalur /external/Workspace
         read_cmd = f"su -c 'cat /sdcard/Android/data/{pkg}/files/gloop/external/workspace/arsy_status.txt 2>/dev/null || cat /sdcard/Android/data/{pkg}/files/gloop/external/Workspace/arsy_status.txt 2>/dev/null'"
         
         try:
@@ -170,21 +169,42 @@ def clean_system_cache():
     os.system("su -c 'sync; echo 3 > /proc/sys/vm/drop_caches' > /dev/null 2>&1")
 
 def generate_log_text(instances, total_cleans):
+    """Membagi log menjadi dua format: Khusus Termux dan Khusus Discord"""
     ram_usage = get_ram_usage()
-    log_text = "ARSY MONITOR LOG\r\n\r\n"
-    log_text += f"Ram ussage {ram_usage}\r\n"
-    log_text += f"Clean Cycle  {total_cleans} X\r\n\r\n"
     
+    # 1. Format Log untuk Layar Termux
+    termux_text = "ARSY MONITOR LOG\r\n\r\n"
+    termux_text += f"Ram ussage {ram_usage}\r\n"
+    termux_text += f"Clean Cycle  {total_cleans} X\r\n\r\n"
+    
+    # 2. Format Log untuk Discord
+    discord_text = "**ARSY MONITOR LOG**\n\n"
+    discord_text += f"Ram ussage {ram_usage}\n"
+    discord_text += f"Clean Cycle  {total_cleans} X\n\n"
+    
+    # MENGHITUNG PENYELARASAN (ALIGNMENT)
+    max_usn_len = 0
     for inst in instances:
-        log_text += f"{inst['icon']} {inst['usn']} ({inst['uptime']})\r\n"
+        if len(inst['usn']) > max_usn_len:
+            max_usn_len = len(inst['usn'])
+            
+    # Menerapkan padding dan 10 spasi absolut
+    for inst in instances:
+        # Untuk Termux (Biasa)
+        padded_usn_t = inst['usn'].ljust(max_usn_len)
+        termux_text += f"{inst['icon']} {padded_usn_t}          ({inst['uptime']})\r\n"
         
-    return log_text
+        # Untuk Discord (Tertutup Kotak Spoiler || dan Spasi Kebal Potong)
+        padded_usn_d = inst['usn'].ljust(max_usn_len)
+        # Menggunakan Non-Breaking Space (\u00A0) agar Discord tidak menghapus spasi
+        discord_text += f"{inst['icon']} ||{padded_usn_d}||\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0({inst['uptime']})\n"
+        
+    return termux_text, discord_text
 
-def send_discord_report(webhook_url, log_text):
+def send_discord_report(webhook_url, discord_text):
     if not webhook_url or "discord.com" not in webhook_url:
         return
         
-    discord_text = log_text.replace("ARSY MONITOR LOG", "**ARSY MONITOR LOG**").replace('\r', '')
     embed = {
         "description": discord_text,
         "color": 5763719,
@@ -225,17 +245,20 @@ def run_engine(config):
     while True:
         try:
             instances_data = get_instances_telemetry(packages)
-            log_text = generate_log_text(instances_data, total_cleans)
+            
+            # MEMISAHKAN LOG TERMUX DAN DISCORD
+            termux_log, discord_log = generate_log_text(instances_data, total_cleans)
             
             clear_screen()
-            print(log_text)
+            print(termux_log) # Print khusus format Termux
             print("\r\n[!] Mesin berjalan normal di latar belakang.")
             print("\r\n[!] Buka 'New Session' di Termux dan ketik 'pkill python' untuk mematikan.")
             
-            send_discord_report(config["webhook_url"], log_text)
+            send_discord_report(config["webhook_url"], discord_log) # Kirim khusus format Discord
             
             del instances_data
-            del log_text
+            del termux_log
+            del discord_log
             gc.collect()
             
             time.sleep(600) 
