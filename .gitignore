@@ -1,0 +1,6 @@
+# Mengabaikan file konfigurasi rahasia
+config.json
+
+# Mengabaikan sampah cache Python
+__pycache__/
+*.pyc
