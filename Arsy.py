@@ -58,37 +58,61 @@ def get_ram_usage():
     return "N/A"
 
 def deploy_telemetry_lua(packages):
-    lua_script = """repeat task.wait() until game:IsLoaded()
-task.wait(3)
+    # LUA SCRIPT: Dengan Custom GUI di TENGAH LAYAR
+    lua_script = """if not game:IsLoaded() then game.Loaded:Wait() end
+task.wait(2)
 local Players = game:GetService("Players")
-local StarterGui = game:GetService("StarterGui")
 local usn = Players.LocalPlayer and Players.LocalPlayer.Name or "Unknown"
 local startTime = os.time()
 
+-- Membuat Custom UI di Tengah Layar
 pcall(function()
-    StarterGui:SetCore("SendNotification", {Title = "🍃 Arsy V2.0", Text = "Sensor Heartbeat Aktif!", Duration = 5})
+    local sg = Instance.new("ScreenGui")
+    sg.Name = "ArsyNotif"
+    local target = game:GetService("CoreGui") or Players.LocalPlayer:WaitForChild("PlayerGui")
+    sg.Parent = target
+    
+    local tl = Instance.new("TextLabel")
+    tl.Parent = sg
+    tl.Size = UDim2.new(0, 450, 0, 80)
+    tl.Position = UDim2.new(0.5, -225, 0.5, -40) -- Posisi mutlak di tengah (Center)
+    tl.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+    tl.BackgroundTransparency = 0.3
+    tl.TextColor3 = Color3.fromRGB(0, 255, 0) -- Warna Hijau
+    tl.TextScaled = true
+    tl.Font = Enum.Font.SourceSansBold
+    tl.Text = "🍃 ARSY V2.0 SENSOR AKTIF! | " .. usn
+    
+    -- Hapus UI setelah 6 detik
+    task.delay(6, function() sg:Destroy() end)
 end)
 
+-- Detak Jantung
 while task.wait(30) do
     pcall(function() writefile("arsy_status.txt", usn .. "|" .. tostring(os.time()) .. "|" .. tostring(startTime)) end)
 end
 """
+    # Tulis ke file lokal termux
     with open("temp_arsy.lua", "w") as f:
         f.write(lua_script)
 
     for pkg in packages:
-        autoexec_path = f"/sdcard/Android/data/{pkg}/files/gloop/external/Autoexecute/arsy.lua"
+        # Kita tembak 2 nama folder executor yang paling umum sekaligus
+        auto_paths = [
+            f"/sdcard/Android/data/{pkg}/files/gloop/external/Autoexecute/arsy.lua",
+            f"/sdcard/Android/data/{pkg}/files/gloop/external/autoexec/arsy.lua"
+        ]
         workspace_path = f"/sdcard/Android/data/{pkg}/files/gloop/workspace"
         
-        # Buat folder jika belum ada dan copy filenya
-        os.system(f"su -c 'mkdir -p \"$(dirname \"{autoexec_path}\")\"'")
         os.system(f"su -c 'mkdir -p \"{workspace_path}\"'")
-        os.system(f"su -c 'cp temp_arsy.lua \"{autoexec_path}\"'")
-        
-        # PERBAIKAN KRUSIAL: Berikan izin akses penuh agar Delta/Roblox tidak diblokir Android!
-        os.system(f"su -c 'chmod 777 \"{autoexec_path}\"'")
         os.system(f"su -c 'chmod 777 \"{workspace_path}\"'")
         
+        for a_path in auto_paths:
+            os.system(f"su -c 'mkdir -p \"$(dirname \"{a_path}\")\"'")
+            # METODE BARU: Menggunakan 'tee' agar menembus blokir file Android 11+
+            os.system(f"cat temp_arsy.lua | su -c 'tee \"{a_path}\" > /dev/null'")
+            os.system(f"su -c 'chmod 777 \"{a_path}\"'")
+            
         status_path = f"{workspace_path}/arsy_status.txt"
         os.system(f"su -c 'rm -f \"{status_path}\"'")
         
@@ -140,7 +164,6 @@ def clean_system_cache():
 
 def generate_log_text(instances, total_cleans):
     ram_usage = get_ram_usage()
-    # PERBAIKAN VISUAL: Menggunakan \r\n agar teks tidak miring ke kanan (Staircase bug Termux)
     log_text = "ARSY MONITOR LOG\r\n\r\n"
     log_text += f"Ram ussage {ram_usage}\r\n"
     log_text += f"Clean Cycle  {total_cleans} X\r\n\r\n"
@@ -154,7 +177,6 @@ def send_discord_report(webhook_url, log_text):
     if not webhook_url or "discord.com" not in webhook_url:
         return
         
-    # Membuang format \r khusus saat dikirim ke Discord
     discord_text = log_text.replace("ARSY MONITOR LOG", "**ARSY MONITOR LOG**").replace('\r', '')
     embed = {
         "description": discord_text,
