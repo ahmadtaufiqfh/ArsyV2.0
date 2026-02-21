@@ -99,17 +99,11 @@ end
         f.write(lua_script)
 
     for pkg in packages:
-        # Sapu Jagat Autoexec
         auto_paths = [
             f"/sdcard/Android/data/{pkg}/files/gloop/external/Autoexecute/arsy.lua",
-            f"/sdcard/Android/data/{pkg}/files/gloop/external/autoexec/arsy.lua",
-            f"/sdcard/Android/data/{pkg}/files/gloop/autoexec/arsy.lua"
         ]
         
-        # Sapu Jagat Workspace
         workspaces = [
-            f"/sdcard/Android/data/{pkg}/files/gloop/workspace",
-            f"/sdcard/Android/data/{pkg}/files/gloop/Workspace",
             f"/sdcard/Android/data/{pkg}/files/gloop/external/workspace",
             f"/sdcard/Android/data/{pkg}/files/gloop/external/Workspace"
         ]
@@ -132,7 +126,6 @@ def get_instances_telemetry(packages):
     current_time = int(time.time()) 
     
     for pkg in packages:
-        # Membaca dari SEMUA kemungkinan folder Workspace Delta
         read_cmd = f"su -c 'cat /sdcard/Android/data/{pkg}/files/gloop/workspace/arsy_status.txt 2>/dev/null || cat /sdcard/Android/data/{pkg}/files/gloop/Workspace/arsy_status.txt 2>/dev/null || cat /sdcard/Android/data/{pkg}/files/gloop/external/workspace/arsy_status.txt 2>/dev/null || cat /sdcard/Android/data/{pkg}/files/gloop/external/Workspace/arsy_status.txt 2>/dev/null'"
         
         try:
@@ -193,7 +186,6 @@ def generate_log_text(instances, total_cleans):
         termux_text += f"{inst['icon']} {padded_usn_t}          ({inst['uptime']})\r\n"
         
         padded_usn_d = inst['usn'].ljust(max_usn_len)
-        # Jangan gunakan blok spoiler untuk status awal agar terlihat rapi
         if inst['usn'] in ["Login...", "Menunggu...", "Unknown"]:
             discord_text += f"{inst['icon']} {padded_usn_d}\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0({inst['uptime']})\n"
         else:
@@ -201,9 +193,10 @@ def generate_log_text(instances, total_cleans):
             
     return termux_text, discord_text
 
-def send_discord_report(webhook_url, discord_text):
+def send_discord_report(webhook_url, discord_text, message_id=None):
+    """Fungsi yang diperbarui untuk mendukung Live Update (Edit Pesan)"""
     if not webhook_url or "discord.com" not in webhook_url:
-        return
+        return None
         
     embed = {
         "description": discord_text,
@@ -212,13 +205,28 @@ def send_discord_report(webhook_url, discord_text):
     }
     
     try:
-        req = urllib.request.Request(webhook_url, method="POST")
-        req.add_header('Content-Type', 'application/json')
-        req.add_header('User-Agent', 'Mozilla/5.0') 
         data = json.dumps({"embeds": [embed]}).encode('utf-8')
-        urllib.request.urlopen(req, data=data, timeout=5)
+        
+        if message_id:
+            # Jika sudah punya ID, kita EDIT pesan yang lama (Mode PATCH)
+            edit_url = f"{webhook_url}/messages/{message_id}"
+            req = urllib.request.Request(edit_url, method="PATCH", data=data)
+            req.add_header('Content-Type', 'application/json')
+            req.add_header('User-Agent', 'Mozilla/5.0')
+            urllib.request.urlopen(req, timeout=5)
+            return message_id
+        else:
+            # Jika belum, kita BUAT pesan baru dan minta Discord kembalikan ID-nya (Mode POST)
+            post_url = f"{webhook_url}?wait=true"
+            req = urllib.request.Request(post_url, method="POST", data=data)
+            req.add_header('Content-Type', 'application/json')
+            req.add_header('User-Agent', 'Mozilla/5.0')
+            response = urllib.request.urlopen(req, timeout=5)
+            resp_data = json.loads(response.read().decode('utf-8'))
+            return resp_data.get('id')
     except Exception as e:
-        pass
+        # Jika pesan terhapus manual di Discord, reset ID agar dia buat pesan baru
+        return None
 
 def run_engine(config):
     packages = get_roblox_packages()
@@ -237,18 +245,20 @@ def run_engine(config):
     
     launch_to_vip_server(packages, config["vip_link"])
     
-    # SISTEM SMART WAIT: Menunggu game benar-benar masuk server (Maks 60 detik)
     clear_screen()
     print("\r\n[+] Menunggu Roblox memuat dan sensor aktif (Maks 60 detik)...")
     for _ in range(12):
         time.sleep(5)
         instances_data = get_instances_telemetry(packages)
         if any(inst['icon'] == "🟢" for inst in instances_data):
-            break # Jika sudah ada yang online, langsung lanjut kirim laporan!
+            break 
     
     gc.collect() 
     loop_count = 0
     total_cleans = 0 
+    
+    # MENYIMPAN ID PESAN DISCORD
+    discord_msg_id = None
 
     while True:
         try:
@@ -260,7 +270,8 @@ def run_engine(config):
             print("\r\n[!] Mesin berjalan normal di latar belakang.")
             print("\r\n[!] Buka 'New Session' di Termux dan ketik 'pkill python' untuk mematikan.")
             
-            send_discord_report(config["webhook_url"], discord_log) 
+            # Update Pesan Discord (Mengganti yang lama)
+            discord_msg_id = send_discord_report(config["webhook_url"], discord_log, discord_msg_id) 
             
             del instances_data
             del termux_log
