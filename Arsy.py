@@ -58,7 +58,6 @@ def get_ram_usage():
     return "N/A"
 
 def deploy_telemetry_lua(packages):
-    """Metode Baru: Copy file via lokal Termux untuk menghindari bug echo root"""
     lua_script = """repeat task.wait() until game:IsLoaded()
 task.wait(3)
 local Players = game:GetService("Players")
@@ -74,20 +73,25 @@ while task.wait(30) do
     pcall(function() writefile("arsy_status.txt", usn .. "|" .. tostring(os.time()) .. "|" .. tostring(startTime)) end)
 end
 """
-    # 1. Tulis ke file sementara di dalam Termux
     with open("temp_arsy.lua", "w") as f:
         f.write(lua_script)
 
-    # 2. Pindahkan file tersebut ke folder Delta menggunakan cp (Copy)
     for pkg in packages:
         autoexec_path = f"/sdcard/Android/data/{pkg}/files/gloop/external/Autoexecute/arsy.lua"
+        workspace_path = f"/sdcard/Android/data/{pkg}/files/gloop/workspace"
+        
+        # Buat folder jika belum ada dan copy filenya
         os.system(f"su -c 'mkdir -p \"$(dirname \"{autoexec_path}\")\"'")
+        os.system(f"su -c 'mkdir -p \"{workspace_path}\"'")
         os.system(f"su -c 'cp temp_arsy.lua \"{autoexec_path}\"'")
         
-        status_path = f"/sdcard/Android/data/{pkg}/files/gloop/workspace/arsy_status.txt"
+        # PERBAIKAN KRUSIAL: Berikan izin akses penuh agar Delta/Roblox tidak diblokir Android!
+        os.system(f"su -c 'chmod 777 \"{autoexec_path}\"'")
+        os.system(f"su -c 'chmod 777 \"{workspace_path}\"'")
+        
+        status_path = f"{workspace_path}/arsy_status.txt"
         os.system(f"su -c 'rm -f \"{status_path}\"'")
         
-    # 3. Hapus file sementara
     if os.path.exists("temp_arsy.lua"):
         os.remove("temp_arsy.lua")
 
@@ -136,12 +140,13 @@ def clean_system_cache():
 
 def generate_log_text(instances, total_cleans):
     ram_usage = get_ram_usage()
-    log_text = "ARSY MONITOR LOG\n\n"
-    log_text += f"Ram ussage {ram_usage}\n"
-    log_text += f"Clean Cycle  {total_cleans} X\n\n"
+    # PERBAIKAN VISUAL: Menggunakan \r\n agar teks tidak miring ke kanan (Staircase bug Termux)
+    log_text = "ARSY MONITOR LOG\r\n\r\n"
+    log_text += f"Ram ussage {ram_usage}\r\n"
+    log_text += f"Clean Cycle  {total_cleans} X\r\n\r\n"
     
     for inst in instances:
-        log_text += f"{inst['icon']} {inst['usn']} ({inst['uptime']})\n"
+        log_text += f"{inst['icon']} {inst['usn']} ({inst['uptime']})\r\n"
         
     return log_text
 
@@ -149,7 +154,8 @@ def send_discord_report(webhook_url, log_text):
     if not webhook_url or "discord.com" not in webhook_url:
         return
         
-    discord_text = log_text.replace("ARSY MONITOR LOG", "**ARSY MONITOR LOG**")
+    # Membuang format \r khusus saat dikirim ke Discord
+    discord_text = log_text.replace("ARSY MONITOR LOG", "**ARSY MONITOR LOG**").replace('\r', '')
     embed = {
         "description": discord_text,
         "color": 5763719,
@@ -159,13 +165,11 @@ def send_discord_report(webhook_url, log_text):
     try:
         req = urllib.request.Request(webhook_url, method="POST")
         req.add_header('Content-Type', 'application/json')
-        # Wajib ditambahkan agar tidak diblokir Discord
-        req.add_header('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)') 
+        req.add_header('User-Agent', 'Mozilla/5.0') 
         data = json.dumps({"embeds": [embed]}).encode('utf-8')
         urllib.request.urlopen(req, data=data, timeout=5)
     except Exception as e:
-        # Menulis error ke log termux jika discord masih gagal
-        print(f"[!] Gagal mengirim Discord: {e}")
+        print(f"\r\n[!] Gagal mengirim Discord: {e}")
 
 def run_engine(config):
     packages = get_roblox_packages()
@@ -183,8 +187,6 @@ def run_engine(config):
     time.sleep(2)
     
     launch_to_vip_server(packages, config["vip_link"])
-    
-    # Memberi waktu 15 detik untuk game loading sebelum laporan pertama
     time.sleep(15)
     
     gc.collect() 
@@ -193,14 +195,13 @@ def run_engine(config):
 
     while True:
         try:
-            # LAPOR DULU...
             instances_data = get_instances_telemetry(packages)
             log_text = generate_log_text(instances_data, total_cleans)
             
             clear_screen()
             print(log_text)
-            print("\n[!] Mesin berjalan normal di latar belakang.")
-            print("[!] Tekan CTRL+C dua kali dengan cepat untuk mematikan bot.")
+            print("\r\n[!] Mesin berjalan normal di latar belakang.")
+            print("\r\n[!] Tekan CTRL+C dua kali dengan cepat untuk mematikan bot.")
             
             send_discord_report(config["webhook_url"], log_text)
             
@@ -208,7 +209,6 @@ def run_engine(config):
             del log_text
             gc.collect()
             
-            # ...BARU TIDUR 10 MENIT
             time.sleep(600) 
             loop_count += 1
             
@@ -218,7 +218,7 @@ def run_engine(config):
                 loop_count = 0 
             
         except KeyboardInterrupt:
-            print("\n[!] Peringatan: Input terdeteksi. Skrip menahan diri...")
+            print("\r\n[!] Peringatan: Input terdeteksi. Skrip menahan diri...")
             time.sleep(2)
         except Exception as e:
             pass
