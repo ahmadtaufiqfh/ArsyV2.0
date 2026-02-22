@@ -4,177 +4,181 @@ import subprocess
 
 def deploy_telemetry_lua(packages):
     # ==========================================
-    # FILE 1: CORE SYSTEM (HANYA ANTI-AFK & HEARTBEAT)
-    # Masuk ke folder Autoexecute
+    # FILE TUNGGAL: arsy.lua (Fungsi Terpusat)
     # ==========================================
-    lua_core = """
-repeat task.wait() until game:IsLoaded()
-local Players = game:GetService("Players")
-
-local usn = Players.LocalPlayer and Players.LocalPlayer.Name or "Unknown"
-local startTime = os.time()
-
--- SILENT ANTI-AFK HOOK
-pcall(function()
-    for _, connection in pairs(getconnections(Players.LocalPlayer.Idled)) do
-        connection:Disable()
+    lua_script = """
+local function InitArsy()
+    -- 1. Menunggu Game Siap (Safe Boot)
+    if not game:IsLoaded() then
+        game.Loaded:Wait()
     end
-end)
+    task.wait(2)
 
--- CFRAME SHIFT
-task.spawn(function()
-    while task.wait(900) do
+    local Players = game:GetService("Players")
+    local CoreGui = game:GetService("CoreGui")
+    local RunService = game:GetService("RunService")
+    local Stats = game:GetService("Stats")
+
+    local LocalPlayer = Players.LocalPlayer
+    while not LocalPlayer do
+        task.wait(1)
+        LocalPlayer = Players.LocalPlayer
+    end
+
+    local usn = LocalPlayer.Name
+    local startTime = os.time()
+
+    -- ==========================================
+    -- 2. CORE SYSTEM (ANTI-AFK & CFRAME)
+    -- ==========================================
+    pcall(function()
+        for _, connection in pairs(getconnections(LocalPlayer.Idled)) do
+            connection:Disable()
+        end
+    end)
+
+    task.spawn(function()
+        while task.wait(900) do
+            pcall(function()
+                local char = LocalPlayer.Character
+                if char and char:FindFirstChild("HumanoidRootPart") then
+                    local hrp = char.HumanoidRootPart
+                    hrp.CFrame = hrp.CFrame * CFrame.new(0, 0.1, 0) 
+                    task.wait(0.5)
+                    hrp.CFrame = hrp.CFrame * CFrame.new(0, -0.1, 0)
+                end
+            end)
+        end
+    end)
+
+    -- ==========================================
+    -- 3. UI SYSTEM (BLACK SCREEN)
+    -- Dibungkus task.spawn agar tidak mengganggu Heartbeat jika gagal
+    -- ==========================================
+    task.spawn(function()
         pcall(function()
-            local char = Players.LocalPlayer.Character
-            if char and char:FindFirstChild("HumanoidRootPart") then
-                local hrp = char.HumanoidRootPart
-                hrp.CFrame = hrp.CFrame * CFrame.new(0, 0.1, 0) 
-                task.wait(0.5)
-                hrp.CFrame = hrp.CFrame * CFrame.new(0, -0.1, 0)
+            local isBlackScreen = false
+            local screenGui = Instance.new("ScreenGui")
+            screenGui.Name = "BlackScreen"
+            screenGui.IgnoreGuiInset = true 
+            screenGui.DisplayOrder = 2147483647
+            screenGui.ResetOnSpawn = false
+
+            local ui_parent
+            local successHui, resultHui = pcall(function() return gethui() end)
+            if successHui and resultHui then
+                ui_parent = resultHui
+            else
+                ui_parent = CoreGui
             end
+            screenGui.Parent = ui_parent
+
+            local blackFrame = Instance.new("Frame")
+            blackFrame.Size = UDim2.new(1, 0, 1, 0) 
+            blackFrame.Position = UDim2.new(0, 0, 0, 0)
+            blackFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+            blackFrame.Visible = false
+            blackFrame.BorderSizePixel = 0
+            blackFrame.Parent = screenGui
+
+            local afkText = Instance.new("TextLabel")
+            afkText.Size = UDim2.new(1, 0, 1, 0)
+            afkText.BackgroundTransparency = 1
+            afkText.Text = "BLACK SCREEN MODE"
+            afkText.TextColor3 = Color3.fromRGB(80, 80, 80)
+            afkText.TextSize = 20
+            afkText.Font = Enum.Font.GothamBold
+            afkText.Parent = blackFrame
+
+            local toggleButton = Instance.new("TextButton")
+            toggleButton.Parent = screenGui
+            toggleButton.BackgroundColor3 = Color3.fromRGB(50, 50, 200)
+            toggleButton.Position = UDim2.new(1, -180, 0, 100)
+            toggleButton.Size = UDim2.new(0, 160, 0, 40)
+            toggleButton.Font = Enum.Font.GothamBold
+            toggleButton.Text = "Loading..." 
+            toggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+            toggleButton.TextSize = 14.000 
+            toggleButton.Draggable = true 
+            toggleButton.AutoButtonColor = false
+
+            local uiCorner = Instance.new("UICorner")
+            uiCorner.CornerRadius = UDim.new(0, 8)
+            uiCorner.Parent = toggleButton
+
+            toggleButton.MouseButton1Click:Connect(function()
+                isBlackScreen = not isBlackScreen
+                if isBlackScreen then
+                    blackFrame.Visible = true
+                    toggleButton.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+                    if setfpscap then setfpscap(30) end
+                else
+                    blackFrame.Visible = false
+                    toggleButton.BackgroundColor3 = Color3.fromRGB(50, 50, 200)
+                    if setfpscap then setfpscap(60) end
+                end
+            end)
+
+            local sec = os.clock()
+            local frames = 0
+
+            RunService.RenderStepped:Connect(function()
+                frames = frames + 1
+                local currentSec = os.clock()
+                if currentSec - sec >= 1 then
+                    local fps = frames
+                    local status = isBlackScreen and "ON" or "OFF"
+                    local ping = 0
+                    pcall(function() ping = math.floor(Stats.Network.ServerStatsItem["Data Ping"]:GetValue()) end)
+                    toggleButton.Text = status .. " | " .. tostring(fps) .. " | " .. tostring(ping) .. "ms"
+                    frames = 0
+                    sec = currentSec
+                end
+            end)
+            
+            game.StarterGui:SetCore("SendNotification", {
+                Title = "ARSY V2.0",
+                Text = "Black Screen & Telemetry Aktif!",
+                Duration = 5
+            })
         end)
-    end
-end)
+    end)
 
--- HEARTBEAT
-task.spawn(function()
-    while task.wait(30) do
-        pcall(function()
-            writefile("arsy_status.txt", usn .. "|" .. tostring(os.time()) .. "|" .. tostring(startTime))
-        end)
-    end
-end)
-"""
-
-    # ==========================================
-    # FILE 2: UI SYSTEM (HANYA BLACK SCREEN)
-    # Masuk ke folder Scripts (Daftar Skrip Executor)
-    # ==========================================
-    lua_ui = """
-local CoreGui = game:GetService("CoreGui")
-local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
-local Stats = game:GetService("Stats")
-
-local isBlackScreen = false
-local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "BlackScreen"
-screenGui.IgnoreGuiInset = true 
-screenGui.DisplayOrder = 2147483647
-screenGui.ResetOnSpawn = false
-
-local ui_parent
-local successHui, resultHui = pcall(function() return gethui() end)
-if successHui and resultHui then
-    ui_parent = resultHui
-else
-    ui_parent = CoreGui
+    -- ==========================================
+    -- 4. HEARTBEAT SYSTEM
+    -- ==========================================
+    task.spawn(function()
+        while task.wait(30) do
+            pcall(function()
+                writefile("arsy_status.txt", usn .. "|" .. tostring(os.time()) .. "|" .. tostring(startTime))
+            end)
+        end
+    end)
 end
-screenGui.Parent = ui_parent
 
-local blackFrame = Instance.new("Frame")
-blackFrame.Name = "BlackCanvas"
-blackFrame.Size = UDim2.new(1, 0, 1, 0) 
-blackFrame.Position = UDim2.new(0, 0, 0, 0)
-blackFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-blackFrame.Visible = false
-blackFrame.BorderSizePixel = 0
-blackFrame.Parent = screenGui
-
-local afkText = Instance.new("TextLabel")
-afkText.Name = "AFKText"
-afkText.Size = UDim2.new(1, 0, 1, 0)
-afkText.BackgroundTransparency = 1
-afkText.Text = "BLACK SCREEN MODE"
-afkText.TextColor3 = Color3.fromRGB(80, 80, 80)
-afkText.TextSize = 20
-afkText.Font = Enum.Font.GothamBold
-afkText.Parent = blackFrame
-
-local toggleButton = Instance.new("TextButton")
-toggleButton.Name = "ToggleButton"
-toggleButton.Parent = screenGui
-toggleButton.BackgroundColor3 = Color3.fromRGB(50, 50, 200)
-toggleButton.Position = UDim2.new(1, -180, 0, 100)
-toggleButton.Size = UDim2.new(0, 160, 0, 40)
-toggleButton.Font = Enum.Font.GothamBold
-toggleButton.Text = "Loading..." 
-toggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-toggleButton.TextSize = 14.000 
-toggleButton.Draggable = true 
-toggleButton.AutoButtonColor = false
-
-local uiCorner = Instance.new("UICorner")
-uiCorner.CornerRadius = UDim.new(0, 8)
-uiCorner.Parent = toggleButton
-
-toggleButton.MouseButton1Click:Connect(function()
-    isBlackScreen = not isBlackScreen
-    if isBlackScreen then
-        blackFrame.Visible = true
-        toggleButton.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
-        if setfpscap then setfpscap(30) end
-    else
-        blackFrame.Visible = false
-        toggleButton.BackgroundColor3 = Color3.fromRGB(50, 50, 200)
-        if setfpscap then setfpscap(60) end
-    end
-end)
-
-local sec = os.clock()
-local frames = 0
-
-RunService.RenderStepped:Connect(function()
-    frames = frames + 1
-    local currentSec = os.clock()
-    if currentSec - sec >= 1 then
-        local fps = frames
-        local status = isBlackScreen and "ON" or "OFF"
-        local ping = 0
-        pcall(function() ping = math.floor(Stats.Network.ServerStatsItem["Data Ping"]:GetValue()) end)
-        toggleButton.Text = status .. " | " .. tostring(fps) .. " | " .. tostring(ping) .. "ms"
-        frames = 0
-        sec = currentSec
-    end
-end)
-
-game.StarterGui:SetCore("SendNotification", {
-    Title = "BLACK SCREEN MODE",
-    Text = "Tombol berhasil dimuat secara manual!",
-    Duration = 5
-})
+-- Menjalankan fungsi utama di jalur terpisah agar tidak dicegat executor
+task.spawn(InitArsy)
 """
 
-    # Buat file sementara
-    with open("temp_core.lua", "w", encoding="utf-8") as f_core:
-        f_core.write(lua_core)
-        
-    with open("temp_ui.lua", "w", encoding="utf-8") as f_ui:
-        f_ui.write(lua_ui)
+    with open("temp_arsy.lua", "w", encoding="utf-8") as f:
+        f.write(lua_script)
         
     for pkg in packages:
-        # Jalur untuk Autoexecute (Otomatis jalan)
-        autoexec_path = f"/sdcard/Android/data/{pkg}/files/gloop/external/Autoexecute/arsy_core.lua"
-        
-        # Jalur untuk Scripts (Tersimpan di Executor, jalankan manual)
-        scripts_folder = f"/sdcard/Android/data/{pkg}/files/gloop/external/Scripts/ArsyBlackScreen.lua"
-        
+        autoexec_path = f"/sdcard/Android/data/{pkg}/files/gloop/external/Autoexecute/arsy.lua"
         status_path = f"/sdcard/Android/data/{pkg}/files/gloop/workspace/arsy_status.txt"
         
-        # Bersihkan file autoexec lama agar tidak tumpang tindih
-        os.system(f"su -c 'rm -f \"/sdcard/Android/data/{pkg}/files/gloop/external/Autoexecute/arsy.lua\"'")
+        # Bersihkan file pecah jika sebelumnya masih ada
+        os.system(f"su -c 'rm -f \"/sdcard/Android/data/{pkg}/files/gloop/external/Autoexecute/arsy_core.lua\"'")
+        os.system(f"su -c 'rm -f \"/sdcard/Android/data/{pkg}/files/gloop/external/Autoexecute/1_arsy_core.lua\"'")
+        os.system(f"su -c 'rm -f \"/sdcard/Android/data/{pkg}/files/gloop/external/Autoexecute/2_arsy_ui.lua\"'")
+        os.system(f"su -c 'rm -f \"/sdcard/Android/data/{pkg}/files/gloop/external/Scripts/ArsyBlackScreen.lua\"'")
         
-        # Eksekusi pemindahan file
         os.system(f"su -c 'mkdir -p \"$(dirname \"{autoexec_path}\")\"'")
-        os.system(f"su -c 'mkdir -p \"$(dirname \"{scripts_folder}\")\"'")
-        
-        os.system(f"su -c 'cp temp_core.lua \"{autoexec_path}\"'")
-        os.system(f"su -c 'cp temp_ui.lua \"{scripts_folder}\"'")
+        os.system(f"su -c 'cp temp_arsy.lua \"{autoexec_path}\"'")
         os.system(f"su -c 'rm -f \"{status_path}\"'")
         
-    # Hapus file sementara
-    if os.path.exists("temp_core.lua"): os.remove("temp_core.lua")
-    if os.path.exists("temp_ui.lua"): os.remove("temp_ui.lua")
+    if os.path.exists("temp_arsy.lua"):
+        os.remove("temp_arsy.lua")
 
 
 def get_instances_telemetry(packages):
