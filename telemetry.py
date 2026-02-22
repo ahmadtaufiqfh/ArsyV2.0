@@ -35,12 +35,14 @@ task.spawn(function()
     end
 end)
 
--- HEARTBEAT
-while task.wait(30) do
-    pcall(function()
-        writefile("arsy_status.txt", usn .. "|" .. tostring(os.time()) .. "|" .. tostring(startTime))
-    end)
-end
+-- HEARTBEAT (FIXED: Dibungkus task.spawn agar tidak nge-block autoexec)
+task.spawn(function()
+    while task.wait(30) do
+        pcall(function()
+            writefile("arsy_status.txt", usn .. "|" .. tostring(os.time()) .. "|" .. tostring(startTime))
+        end)
+    end
+end)
 """
 
     # ==========================================
@@ -144,29 +146,26 @@ game.StarterGui:SetCore("SendNotification", {
 })
 """
 
-    # Menyimpan kedua skrip ke dalam file sementara di Termux
     with open("temp_core.lua", "w", encoding="utf-8") as f_core:
         f_core.write(lua_core)
         
     with open("temp_ui.lua", "w", encoding="utf-8") as f_ui:
         f_ui.write(lua_ui)
         
-    # Memasukkan kedua file ke folder Autoexecute
     for pkg in packages:
-        # Penamaan menggunakan 1_ dan 2_ agar dieksekusi berurutan oleh executor
         core_path = f"/sdcard/Android/data/{pkg}/files/gloop/external/Autoexecute/1_arsy_core.lua"
         ui_path = f"/sdcard/Android/data/{pkg}/files/gloop/external/Autoexecute/2_arsy_ui.lua"
         status_path = f"/sdcard/Android/data/{pkg}/files/gloop/workspace/arsy_status.txt"
+        old_arsy_path = f"/sdcard/Android/data/{pkg}/files/gloop/external/Autoexecute/arsy.lua"
         
-        # Membuat folder (jika belum ada) dan menyalin file
+        # Hapus file arsy.lua yang lama agar tidak bentrok
+        os.system(f"su -c 'rm -f \"{old_arsy_path}\"'")
+        
         os.system(f"su -c 'mkdir -p \"$(dirname \"{core_path}\")\"'")
         os.system(f"su -c 'cp temp_core.lua \"{core_path}\"'")
         os.system(f"su -c 'cp temp_ui.lua \"{ui_path}\"'")
-        
-        # Hapus file status lama agar reset
         os.system(f"su -c 'rm -f \"{status_path}\"'")
         
-    # Bersihkan sampah file sementara dari Termux
     if os.path.exists("temp_core.lua"): os.remove("temp_core.lua")
     if os.path.exists("temp_ui.lua"): os.remove("temp_ui.lua")
 
