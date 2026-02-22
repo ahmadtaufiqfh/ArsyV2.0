@@ -24,21 +24,18 @@ def run_engine(config):
     time.sleep(2)
     
     launch_to_vip_server(packages, config["vip_link"])
-    
     gc.collect() 
+    
+    # [PERBAIKAN] Menunggu sebentar agar Roblox terbuka dan masuk ke dalam game
+    print("\n[+] Menunggu 45 detik agar Roblox masuk ke dalam server...")
+    time.sleep(45)
+
     loop_count = 0
     total_cleans = 0 
 
     while True:
         try:
-            time.sleep(600) 
-            loop_count += 1
-            
-            if loop_count >= 3:
-                clean_system_cache()
-                total_cleans += 1 
-                loop_count = 0 
-                
+            # 1. BACA DATA LALU KIRIM SEKARANG JUGA
             instances_data = get_instances_telemetry(packages)
             log_text = generate_log_text(instances_data, total_cleans)
             
@@ -47,12 +44,23 @@ def run_engine(config):
             print("\n[!] Mesin berjalan normal di latar belakang.")
             print("[!] Tekan CTRL+C dua kali dengan cepat untuk mematikan bot.")
             
+            # Eksekusi pengiriman ke Discord
             send_discord_report(config["webhook_url"], log_text)
             
             del instances_data
             del log_text
             gc.collect()
             
+            # 2. BARU TIDUR 10 MENIT SETELAH PESAN TERKIRIM
+            time.sleep(600) 
+            
+            # 3. Hitung siklus untuk Auto-Clean Cache
+            loop_count += 1
+            if loop_count >= 3:
+                clean_system_cache()
+                total_cleans += 1 
+                loop_count = 0 
+                
         except KeyboardInterrupt:
             print("\n[!] Peringatan: Input terdeteksi. Skrip menahan diri...")
             time.sleep(2)
