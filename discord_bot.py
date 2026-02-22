@@ -5,7 +5,6 @@ import urllib.error
 import os
 from utils import get_ram_usage
 
-# File untuk menyimpan ID pesan agar bisa diedit terus-menerus
 MESSAGE_ID_FILE = "discord_msg_id.txt"
 
 def generate_log_text(instances, total_cleans):
@@ -33,44 +32,41 @@ def send_discord_report(webhook_url, log_text):
     }
     
     payload = json.dumps({"embeds": [embed]}).encode('utf-8')
+    headers = {
+        'Content-Type': 'application/json',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0 Safari/537.36'
+    }
     
-    # Mengecek apakah bot sudah pernah mengirim pesan sebelumnya
     message_id = None
     if os.path.exists(MESSAGE_ID_FILE):
         with open(MESSAGE_ID_FILE, "r") as f:
             message_id = f.read().strip()
-            
-    try:
-        if message_id:
-            # JIKA SUDAH ADA PESAN: Gunakan metode PATCH untuk MENGEDIT pesan lama
-            edit_url = f"{webhook_url}/messages/{message_id}"
-            req = urllib.request.Request(edit_url, data=payload, method="PATCH")
-            req.add_header('Content-Type', 'application/json')
-            urllib.request.urlopen(req, timeout=10) # Waktu tunggu diperpanjang agar tidak mudah timeout
-        else:
-            # JIKA BELUM ADA PESAN: Kirim pesan baru dan simpan ID-nya
+
+    # Fungsi khusus untuk mengirim pesan BARU
+    def post_new_message():
+        try:
             post_url = f"{webhook_url}?wait=true"
-            req = urllib.request.Request(post_url, data=payload, method="POST")
-            req.add_header('Content-Type', 'application/json')
+            req = urllib.request.Request(post_url, data=payload, headers=headers, method="POST")
             response = urllib.request.urlopen(req, timeout=10)
             
-            res_body = response.read().decode('utf-8')
-            res_json = json.loads(res_body)
-            new_message_id = res_json.get("id")
-            
-            # Simpan ID pesan ke dalam file
-            if new_message_id:
+            res_json = json.loads(response.read().decode('utf-8'))
+            if res_json.get("id"):
                 with open(MESSAGE_ID_FILE, "w") as f:
-                    f.write(str(new_message_id))
-                    
-    except urllib.error.HTTPError as e:
-        # PENTING: Jika error 404 (Artinya pesan benar-benar Anda hapus manual di Discord)
-        # Barulah bot diizinkan menghapus file memori ID-nya
-        if e.code == 404:
+                    f.write(str(res_json["id"]))
+        except Exception:
+            pass
+
+    # Logika Cerdas: Coba Edit dulu, kalau gagal langsung Kirim Baru!
+    if message_id:
+        try:
+            edit_url = f"{webhook_url}/messages/{message_id}"
+            req = urllib.request.Request(edit_url, data=payload, headers=headers, method="PATCH")
+            urllib.request.urlopen(req, timeout=10)
+        except Exception:
+            # GAGAL EDIT? Langsung hapus memori lama dan buat pesan baru!
             if os.path.exists(MESSAGE_ID_FILE):
                 os.remove(MESSAGE_ID_FILE)
-                
-    except Exception as e:
-        # MENAMPILKAN ERROR ASLI DI TERMUX
-        print(f"\n[!] GAGAL MENGIRIM DISCORD: {e}\n")
-        pass
+            post_new_message()
+    else:
+        # Belum ada memori? Langsung buat pesan baru!
+        post_new_message()
