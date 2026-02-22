@@ -3,7 +3,10 @@ import time
 import subprocess
 
 def deploy_telemetry_lua(packages):
-    lua_script = """
+    # ==========================================
+    # FILE 1: CORE SYSTEM (ANTI-AFK & HEARTBEAT)
+    # ==========================================
+    lua_core = """
 repeat task.wait() until game:IsLoaded()
 local Players = game:GetService("Players")
 
@@ -39,19 +42,134 @@ while task.wait(30) do
     end)
 end
 """
-    with open("temp_arsy.lua", "w") as f:
-        f.write(lua_script)
+
+    # ==========================================
+    # FILE 2: UI SYSTEM (BLACK SCREEN & MONITOR)
+    # ==========================================
+    lua_ui = """
+repeat task.wait() until game:IsLoaded()
+local CoreGui = game:GetService("CoreGui")
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local Stats = game:GetService("Stats")
+
+local isBlackScreen = false
+
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "BlackScreen"
+screenGui.IgnoreGuiInset = true 
+screenGui.DisplayOrder = 2147483647
+
+if pcall(function() screenGui.Parent = CoreGui end) then 
+else 
+    screenGui.Parent = Players.LocalPlayer:WaitForChild("PlayerGui") 
+end
+
+local blackFrame = Instance.new("Frame")
+blackFrame.Name = "BlackCanvas"
+blackFrame.Size = UDim2.new(1, 0, 1, 0) 
+blackFrame.Position = UDim2.new(0, 0, 0, 0)
+blackFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+blackFrame.Visible = false
+blackFrame.BorderSizePixel = 0
+blackFrame.Parent = screenGui
+
+local afkText = Instance.new("TextLabel")
+afkText.Name = "AFKText"
+afkText.Size = UDim2.new(1, 0, 1, 0)
+afkText.BackgroundTransparency = 1
+afkText.Text = "BLACK SCREEN MODE"
+afkText.TextColor3 = Color3.fromRGB(80, 80, 80)
+afkText.TextSize = 20
+afkText.Font = Enum.Font.GothamBold
+afkText.Parent = blackFrame
+
+local toggleButton = Instance.new("TextButton")
+toggleButton.Name = "ToggleButton"
+toggleButton.Parent = screenGui
+toggleButton.BackgroundColor3 = Color3.fromRGB(50, 50, 200)
+toggleButton.Position = UDim2.new(1, -180, 0, 100)
+toggleButton.Size = UDim2.new(0, 160, 0, 40)
+toggleButton.Font = Enum.Font.GothamBold
+toggleButton.Text = "Loading..." 
+toggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+toggleButton.TextSize = 14.000 
+toggleButton.Draggable = true 
+toggleButton.AutoButtonColor = false
+
+local uiCorner = Instance.new("UICorner")
+uiCorner.CornerRadius = UDim.new(0, 8)
+uiCorner.Parent = toggleButton
+
+toggleButton.MouseButton1Click:Connect(function()
+    isBlackScreen = not isBlackScreen
+    
+    if isBlackScreen then
+        blackFrame.Visible = true
+        toggleButton.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+        if setfpscap then setfpscap(30) end
+    else
+        blackFrame.Visible = false
+        toggleButton.BackgroundColor3 = Color3.fromRGB(50, 50, 200)
+        if setfpscap then setfpscap(60) end
+    end
+end)
+
+local sec = os.clock()
+local frames = 0
+
+RunService.RenderStepped:Connect(function()
+    frames = frames + 1
+    local currentSec = os.clock()
+    
+    if currentSec - sec >= 1 then
+        local fps = frames
+        local status = isBlackScreen and "ON" or "OFF"
+        local ping = 0
         
+        pcall(function()
+            ping = math.floor(Stats.Network.ServerStatsItem["Data Ping"]:GetValue())
+        end)
+        
+        toggleButton.Text = status .. " | " .. tostring(fps) .. " | " .. tostring(ping) .. "ms"
+        frames = 0
+        sec = currentSec
+    end
+end)
+
+game.StarterGui:SetCore("SendNotification", {
+    Title = "BLACK SCREEN MODE",
+    Text = "Black screen mode ready!",
+    Duration = 5
+})
+"""
+
+    # Menyimpan kedua skrip ke dalam file sementara di Termux
+    with open("temp_core.lua", "w", encoding="utf-8") as f_core:
+        f_core.write(lua_core)
+        
+    with open("temp_ui.lua", "w", encoding="utf-8") as f_ui:
+        f_ui.write(lua_ui)
+        
+    # Memasukkan kedua file ke folder Autoexecute
     for pkg in packages:
-        autoexec_path = f"/sdcard/Android/data/{pkg}/files/gloop/external/Autoexecute/arsy.lua"
+        # Penamaan menggunakan 1_ dan 2_ agar dieksekusi berurutan oleh executor
+        core_path = f"/sdcard/Android/data/{pkg}/files/gloop/external/Autoexecute/1_arsy_core.lua"
+        ui_path = f"/sdcard/Android/data/{pkg}/files/gloop/external/Autoexecute/2_arsy_ui.lua"
         status_path = f"/sdcard/Android/data/{pkg}/files/gloop/workspace/arsy_status.txt"
         
-        os.system(f"su -c 'mkdir -p \"$(dirname \"{autoexec_path}\")\"'")
-        os.system(f"su -c 'cp temp_arsy.lua \"{autoexec_path}\"'")
+        # Membuat folder (jika belum ada) dan menyalin file
+        os.system(f"su -c 'mkdir -p \"$(dirname \"{core_path}\")\"'")
+        os.system(f"su -c 'cp temp_core.lua \"{core_path}\"'")
+        os.system(f"su -c 'cp temp_ui.lua \"{ui_path}\"'")
+        
+        # Hapus file status lama agar reset
         os.system(f"su -c 'rm -f \"{status_path}\"'")
         
-    if os.path.exists("temp_arsy.lua"):
-        os.remove("temp_arsy.lua")
+    # Bersihkan sampah file sementara dari Termux
+    if os.path.exists("temp_core.lua"): os.remove("temp_core.lua")
+    if os.path.exists("temp_ui.lua"): os.remove("temp_ui.lua")
+
 
 def get_instances_telemetry(packages):
     instances = []
