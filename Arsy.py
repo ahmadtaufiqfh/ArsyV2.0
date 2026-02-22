@@ -26,8 +26,7 @@ def run_engine(config):
     launch_to_vip_server(packages, config["vip_link"])
     gc.collect() 
     
-    # [PERBAIKAN] Menunggu sebentar agar Roblox terbuka dan masuk ke dalam game
-    print("\n[+] Menunggu 45 detik agar Roblox masuk ke dalam server...")
+    print("\n[+] Menunggu 45 detik agar Roblox memuat game sepenuhnya...")
     time.sleep(45)
 
     loop_count = 0
@@ -35,28 +34,38 @@ def run_engine(config):
 
     while True:
         try:
-            # 1. BACA DATA LALU KIRIM SEKARANG JUGA
+            # 1. BACA DATA TELEMETRY
             instances_data = get_instances_telemetry(packages)
             log_text = generate_log_text(instances_data, total_cleans)
             
+            # 2. UPDATE LAYAR TERMUX
             clear_screen()
+            print("====================================")
+            print("        ARSY V2.0 LIVE MONITOR      ")
+            print("====================================\n")
             print(log_text)
-            print("\n[!] Mesin berjalan normal di latar belakang.")
+            print("\n[!] Mesin stabil berjalan di latar belakang.")
+            print("[!] Laporan Discord di-update setiap 30 detik.")
             print("[!] Tekan CTRL+C dua kali dengan cepat untuk mematikan bot.")
             
-            # Eksekusi pengiriman ke Discord
-            send_discord_report(config["webhook_url"], log_text)
+            # 3. KIRIM KE DISCORD (DIBUNGKUS TERPISAH AGAR AMAN)
+            try:
+                send_discord_report(config["webhook_url"], log_text)
+            except Exception as e:
+                # Jika discord gagal, ia hanya akan mengeluh di sini tanpa merusak sistem lain
+                print(f"\n[!] Info: Gagal sinkronisasi ke Discord ({e})")
             
             del instances_data
             del log_text
             gc.collect()
             
-            # 2. BARU TIDUR 10 MENIT SETELAH PESAN TERKIRIM
-            time.sleep(600) 
+            # 4. WAKTU JEDA AMAN (TIDUR 30 DETIK)
+            # Ini memastikan loop tidak spamming dan memberi waktu game untuk bernapas
+            time.sleep(30) 
             
-            # 3. Hitung siklus untuk Auto-Clean Cache
+            # 5. AUTO-CLEAN CACHE SETIAP 10 MENIT (20 siklus x 30 detik)
             loop_count += 1
-            if loop_count >= 3:
+            if loop_count >= 20:
                 clean_system_cache()
                 total_cleans += 1 
                 loop_count = 0 
@@ -64,8 +73,9 @@ def run_engine(config):
         except KeyboardInterrupt:
             print("\n[!] Peringatan: Input terdeteksi. Skrip menahan diri...")
             time.sleep(2)
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"\n[!] Error fatal pada mesin utama: {e}")
+            time.sleep(5) # Jeda pengaman jika terjadi error ekstrim
 
 def main():
     config = load_config()
