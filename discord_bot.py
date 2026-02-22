@@ -69,7 +69,8 @@ def send_discord_report(webhook_url, log_text):
         if e.code == 404:
             if os.path.exists(MESSAGE_ID_FILE):
                 os.remove(MESSAGE_ID_FILE)
-    except Exception:
-        # Jika error karena baru restart, tidak ada sinyal, atau timeout
-        # ABAIKAN SAJA (Pass) dan JANGAN hapus file ID. Bot akan mencoba lagi nanti.
+                
+    except Exception as e:
+        # MENAMPILKAN ERROR ASLI DI TERMUX
+        print(f"\n[!] GAGAL MENGIRIM DISCORD: {e}\n")
         pass
