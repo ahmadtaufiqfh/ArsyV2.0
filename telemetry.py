@@ -12,7 +12,6 @@ local function InitArsy()
 
     local Players = game:GetService("Players")
     local CoreGui = game:GetService("CoreGui")
-    local RunService = game:GetService("RunService")
     local Stats = game:GetService("Stats")
 
     local LocalPlayer = Players.LocalPlayer
@@ -22,6 +21,7 @@ local function InitArsy()
     end
 
     local usn = LocalPlayer.Name
+    if not usn or usn == "" then usn = "Player" end
     local startTime = os.time()
 
     pcall(function()
@@ -30,20 +30,9 @@ local function InitArsy()
         end
     end)
 
-    task.spawn(function()
-        while task.wait(900) do
-            pcall(function()
-                local char = LocalPlayer.Character
-                if char and char:FindFirstChild("HumanoidRootPart") then
-                    local hrp = char.HumanoidRootPart
-                    hrp.CFrame = hrp.CFrame * CFrame.new(0, 0.1, 0) 
-                    task.wait(0.5)
-                    hrp.CFrame = hrp.CFrame * CFrame.new(0, -0.1, 0)
-                end
-            end)
-        end
-    end)
-
+    -- ==========================================
+    -- UI SYSTEM (BLACK SCREEN & MONITOR)
+    -- ==========================================
     task.spawn(function()
         pcall(function()
             local isBlackScreen = false
@@ -64,20 +53,10 @@ local function InitArsy()
 
             local blackFrame = Instance.new("Frame")
             blackFrame.Size = UDim2.new(1, 0, 1, 0) 
-            blackFrame.Position = UDim2.new(0, 0, 0, 0)
             blackFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
             blackFrame.Visible = false
             blackFrame.BorderSizePixel = 0
             blackFrame.Parent = screenGui
-
-            local afkText = Instance.new("TextLabel")
-            afkText.Size = UDim2.new(1, 0, 1, 0)
-            afkText.BackgroundTransparency = 1
-            afkText.Text = "BLACK SCREEN MODE"
-            afkText.TextColor3 = Color3.fromRGB(80, 80, 80)
-            afkText.TextSize = 20
-            afkText.Font = Enum.Font.GothamBold
-            afkText.Parent = blackFrame
 
             local toggleButton = Instance.new("TextButton")
             toggleButton.Parent = screenGui
@@ -88,9 +67,7 @@ local function InitArsy()
             toggleButton.Text = "Loading..." 
             toggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
             toggleButton.TextSize = 14.000 
-            toggleButton.Draggable = true 
-            toggleButton.AutoButtonColor = false
-
+            
             local uiCorner = Instance.new("UICorner")
             uiCorner.CornerRadius = UDim.new(0, 8)
             uiCorner.Parent = toggleButton
@@ -110,44 +87,43 @@ local function InitArsy()
 
             local sec = os.clock()
             local frames = 0
-
-            RunService.RenderStepped:Connect(function()
+            game:GetService("RunService").RenderStepped:Connect(function()
                 frames = frames + 1
                 local currentSec = os.clock()
                 if currentSec - sec >= 1 then
-                    local fps = frames
-                    local status = isBlackScreen and "ON" or "OFF"
                     local ping = 0
                     pcall(function() ping = math.floor(Stats.Network.ServerStatsItem["Data Ping"]:GetValue()) end)
-                    toggleButton.Text = status .. " | " .. tostring(fps) .. " | " .. tostring(ping) .. "ms"
+                    toggleButton.Text = (isBlackScreen and "ON" or "OFF") .. " | " .. tostring(frames) .. " | " .. tostring(ping) .. "ms"
                     frames = 0
                     sec = currentSec
                 end
             end)
-            
-            game.StarterGui:SetCore("SendNotification", {
-                Title = "ARSY V2.0",
-                Text = "Black Screen & Telemetry Aktif!",
-                Duration = 5
-            })
         end)
     end)
 
     -- ==========================================
-    -- 4. HEARTBEAT SYSTEM (PERBAIKAN DISCORD)
+    -- HEARTBEAT SYSTEM (PERBAIKAN ERROR)
     -- ==========================================
     task.spawn(function()
-        -- Membuat fungsi khusus untuk mengirim data
         local function sendHeartbeat()
-            pcall(function()
-                writefile("arsy_status.txt", usn .. "|" .. tostring(os.time()) .. "|" .. tostring(startTime))
+            local content = tostring(usn) .. "|" .. tostring(os.time()) .. "|" .. tostring(startTime)
+            
+            -- Membungkus writefile untuk menangkap error jika executor memblokirnya
+            local success, err = pcall(function()
+                writefile("arsy_status.txt", content)
             end)
+            
+            -- Jika gagal, tampilkan notifikasi di layar Roblox!
+            if not success then
+                game.StarterGui:SetCore("SendNotification", {
+                    Title = "[!] ERROR ARSY",
+                    Text = "Gagal menyimpan file status: " .. tostring(err),
+                    Duration = 10
+                })
+            end
         end
         
-        -- EKSEKUSI SEKETIKA: Termux langsung tahu Anda Online dan memicu Discord!
         sendHeartbeat()
-        
-        -- Kemudian baru diulang setiap 30 detik
         while task.wait(30) do
             sendHeartbeat()
         end
@@ -168,8 +144,6 @@ task.spawn(InitArsy)
         
         os.system(f"su -c 'mkdir -p \"$(dirname \"{autoexec_path}\")\"'")
         os.system(f"su -c 'cp \"{temp_file_path}\" \"{autoexec_path}\"'")
-        
-        # PENTING: File status lama dihapus agar saat game memuat ulang statusnya benar-benar direset.
         os.system(f"su -c 'rm -f \"{status_path}\"'")
         
     if os.path.exists(temp_file_path):
@@ -182,7 +156,10 @@ def get_instances_telemetry(packages):
     for pkg in packages:
         workspace_path = f"/sdcard/Android/data/{pkg}/files/gloop/workspace/arsy_status.txt"
         try:
-            output = subprocess.check_output(f"su -c 'cat \"{workspace_path}\"'", shell=True, stderr=subprocess.DEVNULL).decode('utf-8').strip()
+            # Pengecekan membaca file
+            result = subprocess.run(f"su -c 'cat \"{workspace_path}\"'", shell=True, capture_output=True, text=True)
+            output = result.stdout.strip()
+            
             if "|" in output:
                 parts = output.split("|")
                 usn = parts[0]
@@ -202,8 +179,11 @@ def get_instances_telemetry(packages):
                     
                 instances.append({"usn": usn, "icon": status_icon, "uptime": uptime_str})
             else:
-                instances.append({"usn": "Menunggu...", "icon": "⏳", "uptime": "Memuat..."})
-        except:
-            instances.append({"usn": "Login...", "icon": "⚫", "uptime": "Offline"})
+                # Jika file kosong atau salah isi
+                error_msg = result.stderr.strip()
+                instances.append({"usn": "Menunggu Data...", "icon": "⏳", "uptime": "Memuat..."})
+        except Exception as e:
+            # Memperbaiki formatting teks yang miring di Termux
+            instances.append({"usn": "Aplikasi Belum Terbuka", "icon": "⚫", "uptime": "Offline"})
             
     return instances
