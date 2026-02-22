@@ -8,7 +8,6 @@ def deploy_telemetry_lua(packages):
     # ==========================================
     lua_script = """
 local function InitArsy()
-    -- 1. Menunggu Game Siap (Safe Boot)
     if not game:IsLoaded() then
         game.Loaded:Wait()
     end
@@ -28,9 +27,6 @@ local function InitArsy()
     local usn = LocalPlayer.Name
     local startTime = os.time()
 
-    -- ==========================================
-    -- 2. CORE SYSTEM (ANTI-AFK & CFRAME)
-    -- ==========================================
     pcall(function()
         for _, connection in pairs(getconnections(LocalPlayer.Idled)) do
             connection:Disable()
@@ -51,10 +47,6 @@ local function InitArsy()
         end
     end)
 
-    -- ==========================================
-    -- 3. UI SYSTEM (BLACK SCREEN)
-    -- Dibungkus task.spawn agar tidak mengganggu Heartbeat jika gagal
-    -- ==========================================
     task.spawn(function()
         pcall(function()
             local isBlackScreen = false
@@ -144,9 +136,6 @@ local function InitArsy()
         end)
     end)
 
-    -- ==========================================
-    -- 4. HEARTBEAT SYSTEM
-    -- ==========================================
     task.spawn(function()
         while task.wait(30) do
             pcall(function()
@@ -156,29 +145,35 @@ local function InitArsy()
     end)
 end
 
--- Menjalankan fungsi utama di jalur terpisah agar tidak dicegat executor
 task.spawn(InitArsy)
 """
+    # ==========================================
+    # PERBAIKAN: MENGGUNAKAN JALUR ABSOLUT (ABSOLUTE PATH)
+    # ==========================================
+    current_dir = os.getcwd() # Mengambil alamat folder Termux saat ini
+    temp_file_path = os.path.join(current_dir, "temp_arsy.lua")
 
-    with open("temp_arsy.lua", "w", encoding="utf-8") as f:
+    with open(temp_file_path, "w", encoding="utf-8") as f:
         f.write(lua_script)
         
     for pkg in packages:
         autoexec_path = f"/sdcard/Android/data/{pkg}/files/gloop/external/Autoexecute/arsy.lua"
         status_path = f"/sdcard/Android/data/{pkg}/files/gloop/workspace/arsy_status.txt"
         
-        # Bersihkan file pecah jika sebelumnya masih ada
+        # Bersihkan sisa file uji coba sebelumnya
         os.system(f"su -c 'rm -f \"/sdcard/Android/data/{pkg}/files/gloop/external/Autoexecute/arsy_core.lua\"'")
         os.system(f"su -c 'rm -f \"/sdcard/Android/data/{pkg}/files/gloop/external/Autoexecute/1_arsy_core.lua\"'")
         os.system(f"su -c 'rm -f \"/sdcard/Android/data/{pkg}/files/gloop/external/Autoexecute/2_arsy_ui.lua\"'")
         os.system(f"su -c 'rm -f \"/sdcard/Android/data/{pkg}/files/gloop/external/Scripts/ArsyBlackScreen.lua\"'")
         
         os.system(f"su -c 'mkdir -p \"$(dirname \"{autoexec_path}\")\"'")
-        os.system(f"su -c 'cp temp_arsy.lua \"{autoexec_path}\"'")
+        
+        # Eksekusi Copy menggunakan alamat lengkap (temp_file_path)
+        os.system(f"su -c 'cp \"{temp_file_path}\" \"{autoexec_path}\"'")
         os.system(f"su -c 'rm -f \"{status_path}\"'")
         
-    if os.path.exists("temp_arsy.lua"):
-        os.remove("temp_arsy.lua")
+    if os.path.exists(temp_file_path):
+        os.remove(temp_file_path)
 
 
 def get_instances_telemetry(packages):
