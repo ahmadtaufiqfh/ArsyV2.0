@@ -3,9 +3,6 @@ import time
 import subprocess
 
 def deploy_telemetry_lua(packages):
-    # ==========================================
-    # FILE TUNGGAL: arsy.lua (Fungsi Terpusat)
-    # ==========================================
     lua_script = """
 local function InitArsy()
     if not game:IsLoaded() then
@@ -136,21 +133,30 @@ local function InitArsy()
         end)
     end)
 
+    -- ==========================================
+    -- 4. HEARTBEAT SYSTEM (PERBAIKAN DISCORD)
+    -- ==========================================
     task.spawn(function()
-        while task.wait(30) do
+        -- Membuat fungsi khusus untuk mengirim data
+        local function sendHeartbeat()
             pcall(function()
                 writefile("arsy_status.txt", usn .. "|" .. tostring(os.time()) .. "|" .. tostring(startTime))
             end)
+        end
+        
+        -- EKSEKUSI SEKETIKA: Termux langsung tahu Anda Online dan memicu Discord!
+        sendHeartbeat()
+        
+        -- Kemudian baru diulang setiap 30 detik
+        while task.wait(30) do
+            sendHeartbeat()
         end
     end)
 end
 
 task.spawn(InitArsy)
 """
-    # ==========================================
-    # PERBAIKAN: MENGGUNAKAN JALUR ABSOLUT (ABSOLUTE PATH)
-    # ==========================================
-    current_dir = os.getcwd() # Mengambil alamat folder Termux saat ini
+    current_dir = os.getcwd()
     temp_file_path = os.path.join(current_dir, "temp_arsy.lua")
 
     with open(temp_file_path, "w", encoding="utf-8") as f:
@@ -160,21 +166,14 @@ task.spawn(InitArsy)
         autoexec_path = f"/sdcard/Android/data/{pkg}/files/gloop/external/Autoexecute/arsy.lua"
         status_path = f"/sdcard/Android/data/{pkg}/files/gloop/workspace/arsy_status.txt"
         
-        # Bersihkan sisa file uji coba sebelumnya
-        os.system(f"su -c 'rm -f \"/sdcard/Android/data/{pkg}/files/gloop/external/Autoexecute/arsy_core.lua\"'")
-        os.system(f"su -c 'rm -f \"/sdcard/Android/data/{pkg}/files/gloop/external/Autoexecute/1_arsy_core.lua\"'")
-        os.system(f"su -c 'rm -f \"/sdcard/Android/data/{pkg}/files/gloop/external/Autoexecute/2_arsy_ui.lua\"'")
-        os.system(f"su -c 'rm -f \"/sdcard/Android/data/{pkg}/files/gloop/external/Scripts/ArsyBlackScreen.lua\"'")
-        
         os.system(f"su -c 'mkdir -p \"$(dirname \"{autoexec_path}\")\"'")
-        
-        # Eksekusi Copy menggunakan alamat lengkap (temp_file_path)
         os.system(f"su -c 'cp \"{temp_file_path}\" \"{autoexec_path}\"'")
+        
+        # PENTING: File status lama dihapus agar saat game memuat ulang statusnya benar-benar direset.
         os.system(f"su -c 'rm -f \"{status_path}\"'")
         
     if os.path.exists(temp_file_path):
         os.remove(temp_file_path)
-
 
 def get_instances_telemetry(packages):
     instances = []
