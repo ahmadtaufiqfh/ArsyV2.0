@@ -4,57 +4,18 @@ import subprocess
 
 def deploy_telemetry_lua(packages):
     # ==========================================
-    # FILE 1: CORE SYSTEM (ANTI-AFK & HEARTBEAT)
+    # DIGABUNGKAN KE DALAM 1 FILE (UI DI ATAS)
     # ==========================================
-    lua_core = """
+    lua_script = """
 repeat task.wait() until game:IsLoaded()
 local Players = game:GetService("Players")
-
-local usn = Players.LocalPlayer and Players.LocalPlayer.Name or "Unknown"
-local startTime = os.time()
-
--- SILENT ANTI-AFK HOOK
-pcall(function()
-    for _, connection in pairs(getconnections(Players.LocalPlayer.Idled)) do
-        connection:Disable()
-    end
-end)
-
--- CFRAME SHIFT (Bypass Custom Anti-AFK Game)
-task.spawn(function()
-    while task.wait(900) do
-        pcall(function()
-            local char = Players.LocalPlayer.Character
-            if char and char:FindFirstChild("HumanoidRootPart") then
-                local hrp = char.HumanoidRootPart
-                hrp.CFrame = hrp.CFrame * CFrame.new(0, 0.1, 0) 
-                task.wait(0.5)
-                hrp.CFrame = hrp.CFrame * CFrame.new(0, -0.1, 0)
-            end
-        end)
-    end
-end)
-
--- HEARTBEAT (FIXED: Dibungkus task.spawn agar tidak nge-block autoexec)
-task.spawn(function()
-    while task.wait(30) do
-        pcall(function()
-            writefile("arsy_status.txt", usn .. "|" .. tostring(os.time()) .. "|" .. tostring(startTime))
-        end)
-    end
-end)
-"""
-
-    # ==========================================
-    # FILE 2: UI SYSTEM (BLACK SCREEN & MONITOR)
-    # ==========================================
-    lua_ui = """
-repeat task.wait() until game:IsLoaded()
 local CoreGui = game:GetService("CoreGui")
-local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Stats = game:GetService("Stats")
 
+-- ==========================================
+-- 1. UI SYSTEM (BLACK SCREEN & MONITOR)
+-- ==========================================
 local isBlackScreen = false
 
 local screenGui = Instance.new("ScreenGui")
@@ -144,30 +105,63 @@ game.StarterGui:SetCore("SendNotification", {
     Text = "Black screen mode ready!",
     Duration = 5
 })
+
+-- ==========================================
+-- 2. CORE SYSTEM (ANTI-AFK & HEARTBEAT)
+-- ==========================================
+local usn = Players.LocalPlayer and Players.LocalPlayer.Name or "Unknown"
+local startTime = os.time()
+
+-- SILENT ANTI-AFK HOOK
+pcall(function()
+    for _, connection in pairs(getconnections(Players.LocalPlayer.Idled)) do
+        connection:Disable()
+    end
+end)
+
+-- CFRAME SHIFT (Bypass Custom Anti-AFK Game)
+task.spawn(function()
+    while task.wait(900) do
+        pcall(function()
+            local char = Players.LocalPlayer.Character
+            if char and char:FindFirstChild("HumanoidRootPart") then
+                local hrp = char.HumanoidRootPart
+                hrp.CFrame = hrp.CFrame * CFrame.new(0, 0.1, 0) 
+                task.wait(0.5)
+                hrp.CFrame = hrp.CFrame * CFrame.new(0, -0.1, 0)
+            end
+        end)
+    end
+end)
+
+-- HEARTBEAT
+task.spawn(function()
+    while task.wait(30) do
+        pcall(function()
+            writefile("arsy_status.txt", usn .. "|" .. tostring(os.time()) .. "|" .. tostring(startTime))
+        end)
+    end
+end)
 """
 
-    with open("temp_core.lua", "w", encoding="utf-8") as f_core:
-        f_core.write(lua_core)
-        
-    with open("temp_ui.lua", "w", encoding="utf-8") as f_ui:
-        f_ui.write(lua_ui)
+    with open("temp_arsy.lua", "w", encoding="utf-8") as f:
+        f.write(lua_script)
         
     for pkg in packages:
-        core_path = f"/sdcard/Android/data/{pkg}/files/gloop/external/Autoexecute/1_arsy_core.lua"
-        ui_path = f"/sdcard/Android/data/{pkg}/files/gloop/external/Autoexecute/2_arsy_ui.lua"
+        autoexec_path = f"/sdcard/Android/data/{pkg}/files/gloop/external/Autoexecute/arsy.lua"
         status_path = f"/sdcard/Android/data/{pkg}/files/gloop/workspace/arsy_status.txt"
-        old_arsy_path = f"/sdcard/Android/data/{pkg}/files/gloop/external/Autoexecute/arsy.lua"
         
-        # Hapus file arsy.lua yang lama agar tidak bentrok
-        os.system(f"su -c 'rm -f \"{old_arsy_path}\"'")
+        # PENTING: Menghapus file percobaan split sebelumnya agar tidak error
+        os.system(f"su -c 'rm -f \"/sdcard/Android/data/{pkg}/files/gloop/external/Autoexecute/1_arsy_core.lua\"'")
+        os.system(f"su -c 'rm -f \"/sdcard/Android/data/{pkg}/files/gloop/external/Autoexecute/2_arsy_ui.lua\"'")
         
-        os.system(f"su -c 'mkdir -p \"$(dirname \"{core_path}\")\"'")
-        os.system(f"su -c 'cp temp_core.lua \"{core_path}\"'")
-        os.system(f"su -c 'cp temp_ui.lua \"{ui_path}\"'")
+        # Memasang skrip gabungan yang baru
+        os.system(f"su -c 'mkdir -p \"$(dirname \"{autoexec_path}\")\"'")
+        os.system(f"su -c 'cp temp_arsy.lua \"{autoexec_path}\"'")
         os.system(f"su -c 'rm -f \"{status_path}\"'")
         
-    if os.path.exists("temp_core.lua"): os.remove("temp_core.lua")
-    if os.path.exists("temp_ui.lua"): os.remove("temp_ui.lua")
+    if os.path.exists("temp_arsy.lua"):
+        os.remove("temp_arsy.lua")
 
 
 def get_instances_telemetry(packages):
