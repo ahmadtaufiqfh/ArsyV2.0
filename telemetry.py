@@ -32,30 +32,38 @@ local function InitArsy()
     end)
 
     -- ==========================================
-    -- AUTO-CLEAN RAM & CONSOLE (Setiap 10 Menit)
+    -- OPTIMASI AMAN: RATA KIRI, RAM, & CONSOLE
     -- ==========================================
+    -- 1. Paksa Grafik ke Level Paling Rendah (Rata Kiri)
+    pcall(function()
+        settings().Rendering.QualityLevel = Enum.QualityLevel.Level01
+    end)
+
+    -- 2. Tukang Sapu Otomatis (Setiap 10 Menit)
     task.spawn(function()
         while task.wait(600) do
             pcall(function()
+                -- Bersihkan log console yang menumpuk
                 if clearconsole then clearconsole()
                 elseif rconsoleclear then rconsoleclear()
                 elseif consoleclear then consoleclear()
                 end
+                
+                -- Bersihkan memori RAM dari sampah data
                 collectgarbage("collect")
             end)
         end
     end)
 
     -- ==========================================
-    -- UI SYSTEM (SUPER MINI + TOUCH DRAG)
+    -- UI SYSTEM: FLOATING WIDGET BULAT (DRAGGABLE)
     -- ==========================================
     task.spawn(function()
         pcall(function()
             local isBlackScreen = false
-            local isPotato = false
             
             local screenGui = Instance.new("ScreenGui")
-            screenGui.Name = "BlackScreen"
+            screenGui.Name = "BlackScreenWidget"
             screenGui.IgnoreGuiInset = true 
             screenGui.DisplayOrder = 2147483647
             screenGui.ResetOnSpawn = false
@@ -80,101 +88,65 @@ local function InitArsy()
             local afkText = Instance.new("TextLabel")
             afkText.Size = UDim2.new(1, 0, 1, 0)
             afkText.BackgroundTransparency = 1
-            afkText.Text = "BLACK SCREEN & POTATO MODE AKTIF"
+            afkText.Text = "BLACK SCREEN MODE AKTIF"
             afkText.TextColor3 = Color3.fromRGB(80, 80, 80)
             afkText.TextSize = 20
             afkText.Font = Enum.Font.GothamBold
             afkText.Parent = blackFrame
 
-            -- WADAH UTAMA 
-            local dragMenu = Instance.new("Frame")
-            dragMenu.Name = "DragMenu"
-            dragMenu.Parent = screenGui
-            dragMenu.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-            dragMenu.Position = UDim2.new(1, -110, 0, 80)
-            dragMenu.Size = UDim2.new(0, 100, 0, 65)
-            dragMenu.BorderSizePixel = 0
-            
-            local cornerMenu = Instance.new("UICorner")
-            cornerMenu.CornerRadius = UDim.new(0, 6)
-            cornerMenu.Parent = dragMenu
-
-            -- GAGANG GESER
-            local dragBar = Instance.new("TextLabel")
-            dragBar.Parent = dragMenu
-            dragBar.Size = UDim2.new(1, 0, 0, 15)
-            dragBar.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
-            dragBar.TextColor3 = Color3.fromRGB(150, 150, 150)
-            dragBar.Text = "✥ GESER ✥"
-            dragBar.Font = Enum.Font.GothamBold
-            dragBar.TextSize = 8
-            dragBar.Active = true 
-            
-            local cornerBar = Instance.new("UICorner")
-            cornerBar.CornerRadius = UDim.new(0, 6)
-            cornerBar.Parent = dragBar
-            
-            local barCover = Instance.new("Frame")
-            barCover.Parent = dragBar
-            barCover.Size = UDim2.new(1, 0, 0, 3)
-            barCover.Position = UDim2.new(0, 0, 1, -3)
-            barCover.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
-            barCover.BorderSizePixel = 0
-
-            -- TOMBOL BS
+            -- TOMBOL BULAT (FLOATING WIDGET)
             local toggleBS = Instance.new("TextButton")
-            toggleBS.Parent = dragMenu
+            toggleBS.Parent = screenGui
             toggleBS.BackgroundColor3 = Color3.fromRGB(50, 50, 200)
-            toggleBS.Position = UDim2.new(0, 0, 0, 15)
-            toggleBS.Size = UDim2.new(1, 0, 0, 25)
+            toggleBS.BackgroundTransparency = 0.1 -- Sedikit transparan agar elegan
+            toggleBS.Position = UDim2.new(1, -90, 0, 100)
+            toggleBS.Size = UDim2.new(0, 65, 0, 65) -- Ukuran kotak proporsional
             toggleBS.Font = Enum.Font.GothamBold
-            toggleBS.Text = "BS: OFF" 
+            toggleBS.Text = "BS: OFF\\n--\\n--" 
             toggleBS.TextColor3 = Color3.fromRGB(255, 255, 255)
-            toggleBS.TextSize = 9
+            toggleBS.TextSize = 11
             toggleBS.BorderSizePixel = 0
+            toggleBS.AutoButtonColor = false -- Matikan efek klik bawaan
 
-            -- TOMBOL POTATO
-            local togglePotato = Instance.new("TextButton")
-            togglePotato.Parent = dragMenu
-            togglePotato.BackgroundColor3 = Color3.fromRGB(50, 50, 200)
-            togglePotato.Position = UDim2.new(0, 0, 0, 40)
-            togglePotato.Size = UDim2.new(1, 0, 0, 25)
-            togglePotato.Font = Enum.Font.GothamBold
-            togglePotato.Text = "POTATO: OFF" 
-            togglePotato.TextColor3 = Color3.fromRGB(255, 255, 255)
-            togglePotato.TextSize = 9
-            togglePotato.BorderSizePixel = 0
-            
-            local cornerPotato = Instance.new("UICorner")
-            cornerPotato.CornerRadius = UDim.new(0, 6)
-            cornerPotato.Parent = togglePotato
-            
-            local potatoCover = Instance.new("Frame")
-            potatoCover.Parent = togglePotato
-            potatoCover.Size = UDim2.new(1, 0, 0, 3)
-            potatoCover.Position = UDim2.new(0, 0, 0, 0)
-            potatoCover.BackgroundColor3 = togglePotato.BackgroundColor3
-            potatoCover.BorderSizePixel = 0
+            -- Rahasia bentuk bulat sempurna: CornerRadius = 1 (100%)
+            local cornerBS = Instance.new("UICorner")
+            cornerBS.CornerRadius = UDim.new(1, 0)
+            cornerBS.Parent = toggleBS
 
-            -- SCRIPT GESER KHUSUS MOBILE 
+            -- SCRIPT GESER VS KLIK (SMART TOUCH DETECTOR)
             local dragging = false
             local dragInput, dragStart, startPos
+            local isMoved = false
 
-            dragBar.InputBegan:Connect(function(input)
+            toggleBS.InputBegan:Connect(function(input)
                 if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
                     dragging = true
+                    isMoved = false
                     dragStart = input.Position
-                    startPos = dragMenu.Position
+                    startPos = toggleBS.Position
                     
                     input.Changed:Connect(function()
                         if input.UserInputState == Enum.UserInputState.End then
                             dragging = false
+                            -- Jika jari dilepas dan tombol TIDAK digeser, maka dihitung sebagai KLIK (Toggle)
+                            if not isMoved then
+                                isBlackScreen = not isBlackScreen
+                                if isBlackScreen then
+                                    blackFrame.Visible = true
+                                    toggleBS.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+                                    if setfpscap then setfpscap(15) end -- FPS diturunkan ke 15 saat BS untuk hemat RAM ekstrem
+                                else
+                                    blackFrame.Visible = false
+                                    toggleBS.BackgroundColor3 = Color3.fromRGB(50, 50, 200)
+                                    if setfpscap then setfpscap(60) end
+                                end
+                            end
                         end
                     end)
                 end
             end)
 
-            dragBar.InputChanged:Connect(function(input)
+            toggleBS.InputChanged:Connect(function(input)
                 if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
                     dragInput = input
                 end
@@ -183,78 +155,15 @@ local function InitArsy()
             UserInputService.InputChanged:Connect(function(input)
                 if input == dragInput and dragging then
                     local delta = input.Position - dragStart
-                    dragMenu.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+                    -- Jika jari bergeser lebih dari 5 pixel, maka dihitung sebagai GESER (Bukan Klik)
+                    if delta.Magnitude > 5 then
+                        isMoved = true
+                        toggleBS.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+                    end
                 end
             end)
 
-            -- FUNGSI KLIK BLACK SCREEN
-            toggleBS.MouseButton1Click:Connect(function()
-                isBlackScreen = not isBlackScreen
-                if isBlackScreen then
-                    blackFrame.Visible = true
-                    toggleBS.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
-                    if setfpscap then setfpscap(30) end
-                else
-                    blackFrame.Visible = false
-                    toggleBS.BackgroundColor3 = Color3.fromRGB(50, 50, 200)
-                    if setfpscap then setfpscap(60) end
-                end
-            end)
-
-            -- FUNGSI KLIK POTATO MODE (PERBAIKAN)
-            togglePotato.MouseButton1Click:Connect(function()
-                isPotato = not isPotato
-                if isPotato then
-                    togglePotato.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
-                    potatoCover.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
-                    togglePotato.Text = "POTATO: ON"
-                    
-                    -- Menggunakan task.spawn agar tidak membuat game macet
-                    task.spawn(function()
-                        pcall(function() game:GetService("Lighting").GlobalShadows = false end)
-                        pcall(function() game:GetService("Lighting").FogEnd = 9e9 end)
-                        
-                        local workspace = game:GetService("Workspace")
-                        
-                        -- Mematikan efek gelombang air
-                        local terrain = workspace:FindFirstChildOfClass("Terrain")
-                        if terrain then
-                            pcall(function()
-                                terrain.WaterWaveSize = 0
-                                terrain.WaterWaveSpeed = 0
-                                terrain.WaterReflectance = 0
-                                terrain.WaterTransparency = 0
-                            end)
-                        end
-                        
-                        -- Menghancurkan tekstur secara perlahan (Per 500 objek)
-                        local descendants = workspace:GetDescendants()
-                        for i, v in ipairs(descendants) do
-                            pcall(function()
-                                if v:IsA("BasePart") and not v.Parent:FindFirstChild("Humanoid") then
-                                    v.Material = Enum.Material.SmoothPlastic
-                                    v.Reflectance = 0
-                                elseif v:IsA("Decal") or v:IsA("Texture") or v:IsA("ParticleEmitter") or v:IsA("Trail") then
-                                    v:Destroy()
-                                end
-                            end)
-                            
-                            -- PENTING: Memberi jeda executor agar tidak crash
-                            if i % 500 == 0 then task.wait() end
-                        end
-                    end)
-                else
-                    togglePotato.BackgroundColor3 = Color3.fromRGB(50, 50, 200)
-                    potatoCover.BackgroundColor3 = Color3.fromRGB(50, 50, 200)
-                    togglePotato.Text = "POTATO: OFF"
-                    
-                    pcall(function()
-                        game:GetService("Lighting").GlobalShadows = true
-                    end)
-                end
-            end)
-
-            -- RENDER STEPPED UNTUK FPS & PING
+            -- RENDER STEPPED UNTUK FPS & PING DI DALAM TOMBOL
             local sec = os.clock()
             local frames = 0
             game:GetService("RunService").RenderStepped:Connect(function()
@@ -263,7 +172,10 @@ local function InitArsy()
                 if currentSec - sec >= 1 then
                     local ping = 0
                     pcall(function() ping = math.floor(Stats.Network.ServerStatsItem["Data Ping"]:GetValue()) end)
-                    toggleBS.Text = "BS: " .. (isBlackScreen and "ON" or "OFF") .. " | " .. tostring(frames) .. " | " .. tostring(ping) .. "ms"
+                    -- Menulis 3 baris di dalam tombol bulat
+                    local statusText = isBlackScreen and "BS: ON" or "BS: OFF"
+                    toggleBS.Text = statusText .. "\\n" .. tostring(frames) .. " FPS\\n" .. tostring(ping) .. " ms"
+                    
                     frames = 0
                     sec = currentSec
                 end
