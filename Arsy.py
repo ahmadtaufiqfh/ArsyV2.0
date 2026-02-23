@@ -1,11 +1,33 @@
 import os
 import time
 import gc
+import sys
 
 # Mengimpor modul-modul yang sudah dipisah
 from utils import clear_screen, load_config, save_config, go_to_home_screen, get_roblox_packages, launch_to_vip_server, clean_system_cache
 from telemetry import deploy_telemetry_lua, get_instances_telemetry
 from discord_bot import generate_log_text, send_discord_report
+
+# ==========================================
+# OPTIMASI 1: PENGHAPUS RAM TERMUX
+# ==========================================
+def deep_clear_termux():
+    """Membersihkan layar DAN riwayat scroll (scrollback buffer) secara total"""
+    # Kode ANSI ini memaksa Termux melupakan riwayat teks sebelumnya
+    sys.stdout.write('\033[H\033[3J\033[2J')
+    sys.stdout.flush()
+
+# ==========================================
+# OPTIMASI 2: PEMBERSIH RAM KERNEL ANDROID
+# ==========================================
+def drop_android_ram():
+    """Perintah mutlak Root Linux untuk membuang cache RAM Hardware"""
+    try:
+        # sync: Menyimpan data yang menggantung ke memori penyimpanan
+        # echo 3 > drop_caches: Membuang PageCache, dentries, dan inodes dari RAM
+        os.system("su -c 'sync; echo 3 > /proc/sys/vm/drop_caches'")
+    except:
+        pass
 
 def run_engine(config):
     packages = get_roblox_packages()
@@ -24,7 +46,10 @@ def run_engine(config):
     time.sleep(2)
     
     launch_to_vip_server(packages, config["vip_link"])
+    
+    # Pembersihan awal sebelum game membebani sistem
     gc.collect() 
+    drop_android_ram()
     
     print("\n[+] Menunggu 45 detik agar Roblox memuat game sepenuhnya...")
     time.sleep(45)
@@ -34,12 +59,12 @@ def run_engine(config):
 
     while True:
         try:
-            # 1. BACA DATA TELEMETRY
+            # 1. BACA DATA
             instances_data = get_instances_telemetry(packages)
             log_text = generate_log_text(instances_data, total_cleans)
             
-            # 2. UPDATE LAYAR TERMUX
-            clear_screen()
+            # 2. UPDATE LAYAR (Menggunakan Deep Clear agar RAM Termux tidak bengkak)
+            deep_clear_termux()
             print("====================================")
             print("        ARSY V2.0 LIVE MONITOR      ")
             print("====================================\n")
@@ -48,25 +73,25 @@ def run_engine(config):
             print("[!] Laporan Discord di-update setiap 30 detik.")
             print("[!] Tekan CTRL+C dua kali dengan cepat untuk mematikan bot.")
             
-            # 3. KIRIM KE DISCORD (DIBUNGKUS TERPISAH AGAR AMAN)
+            # 3. KIRIM DISCORD
             try:
                 send_discord_report(config["webhook_url"], log_text)
             except Exception as e:
-                # Jika discord gagal, ia hanya akan mengeluh di sini tanpa merusak sistem lain
                 print(f"\n[!] Info: Gagal sinkronisasi ke Discord ({e})")
             
+            # 4. OPTIMASI 3: PYTHON GARBAGE COLLECTOR
+            # Menghapus variabel yang sudah dipakai dari memori Python secara paksa
             del instances_data
             del log_text
             gc.collect()
             
-            # 4. WAKTU JEDA AMAN (TIDUR 30 DETIK)
-            # Ini memastikan loop tidak spamming dan memberi waktu game untuk bernapas
             time.sleep(30) 
             
-            # 5. AUTO-CLEAN CACHE SETIAP 10 MENIT (20 siklus x 30 detik)
+            # 5. SIKLUS PEMBERSIHAN EKSTREM (Setiap 10 Menit = 20 putaran)
             loop_count += 1
             if loop_count >= 20:
-                clean_system_cache()
+                clean_system_cache()  # Pembersihan file cache Android (Storage)
+                drop_android_ram()    # Pembersihan paksa RAM Kernel (Memory)
                 total_cleans += 1 
                 loop_count = 0 
                 
@@ -75,13 +100,13 @@ def run_engine(config):
             time.sleep(2)
         except Exception as e:
             print(f"\n[!] Error fatal pada mesin utama: {e}")
-            time.sleep(5) # Jeda pengaman jika terjadi error ekstrim
+            time.sleep(5) 
 
 def main():
     config = load_config()
     
     while True:
-        clear_screen()
+        deep_clear_termux()
         print("====================================")
         print("        ARSY V2.0 PURE AFK          ")
         print("====================================")
@@ -120,7 +145,7 @@ def main():
                 print("[+] Disimpan!")
                 time.sleep(1)
         elif choice == '0':
-            clear_screen()
+            deep_clear_termux()
             break
         else:
             print("Pilihan tidak valid.")
