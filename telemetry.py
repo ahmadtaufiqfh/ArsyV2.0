@@ -13,6 +13,7 @@ local function InitArsy()
     local Players = game:GetService("Players")
     local CoreGui = game:GetService("CoreGui")
     local Stats = game:GetService("Stats")
+    local UserInputService = game:GetService("UserInputService")
 
     local LocalPlayer = Players.LocalPlayer
     while not LocalPlayer do
@@ -46,7 +47,7 @@ local function InitArsy()
     end)
 
     -- ==========================================
-    -- UI SYSTEM (MINI DUAL MODE + DRAGGABLE)
+    -- UI SYSTEM (SUPER MINI + TOUCH DRAG)
     -- ==========================================
     task.spawn(function()
         pcall(function()
@@ -68,7 +69,7 @@ local function InitArsy()
             end
             screenGui.Parent = ui_parent
 
-            -- KANVAS HITAM (Untuk Blackscreen)
+            -- KANVAS HITAM
             local blackFrame = Instance.new("Frame")
             blackFrame.Size = UDim2.new(1, 0, 1, 0) 
             blackFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
@@ -79,52 +80,113 @@ local function InitArsy()
             local afkText = Instance.new("TextLabel")
             afkText.Size = UDim2.new(1, 0, 1, 0)
             afkText.BackgroundTransparency = 1
-            afkText.Text = "BLACK SCREEN & POTATO MODE AKTIF"
+            afkText.Text = "BLACKSCREEN MODE"
             afkText.TextColor3 = Color3.fromRGB(80, 80, 80)
             afkText.TextSize = 20
             afkText.Font = Enum.Font.GothamBold
             afkText.Parent = blackFrame
 
-            -- WADAH TOMBOL (Agar bisa digeser bersamaan)
+            -- WADAH UTAMA (Ukuran super kecil: 100x65)
             local dragMenu = Instance.new("Frame")
             dragMenu.Name = "DragMenu"
             dragMenu.Parent = screenGui
-            dragMenu.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-            dragMenu.BackgroundTransparency = 1 -- Transparan, hanya tombol yang terlihat
-            dragMenu.Position = UDim2.new(1, -130, 0, 80)
-            dragMenu.Size = UDim2.new(0, 115, 0, 65) -- Setengah ukuran dari sebelumnya!
-            dragMenu.Active = true
-            dragMenu.Draggable = true -- FITUR GESER AKTIF
+            dragMenu.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+            dragMenu.Position = UDim2.new(1, -110, 0, 80)
+            dragMenu.Size = UDim2.new(0, 100, 0, 65)
+            dragMenu.BorderSizePixel = 0
+            
+            local cornerMenu = Instance.new("UICorner")
+            cornerMenu.CornerRadius = UDim.new(0, 6)
+            cornerMenu.Parent = dragMenu
 
-            -- TOMBOL 1: BLACK SCREEN (Ukuran Mini)
+            -- GAGANG GESER (DRAG HANDLE)
+            local dragBar = Instance.new("TextLabel")
+            dragBar.Parent = dragMenu
+            dragBar.Size = UDim2.new(1, 0, 0, 15)
+            dragBar.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+            dragBar.TextColor3 = Color3.fromRGB(150, 150, 150)
+            dragBar.Text = "✥ GESER ✥"
+            dragBar.Font = Enum.Font.GothamBold
+            dragBar.TextSize = 8
+            dragBar.Active = true -- Penting untuk deteksi sentuhan
+            
+            local cornerBar = Instance.new("UICorner")
+            cornerBar.CornerRadius = UDim.new(0, 6)
+            cornerBar.Parent = dragBar
+            
+            -- Menutupi sudut bawah gagang agar rata dengan tombol
+            local barCover = Instance.new("Frame")
+            barCover.Parent = dragBar
+            barCover.Size = UDim2.new(1, 0, 0, 3)
+            barCover.Position = UDim2.new(0, 0, 1, -3)
+            barCover.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+            barCover.BorderSizePixel = 0
+
+            -- TOMBOL 1: BLACK SCREEN
             local toggleBS = Instance.new("TextButton")
             toggleBS.Parent = dragMenu
             toggleBS.BackgroundColor3 = Color3.fromRGB(50, 50, 200)
-            toggleBS.Position = UDim2.new(0, 0, 0, 0)
-            toggleBS.Size = UDim2.new(1, 0, 0, 30)
+            toggleBS.Position = UDim2.new(0, 0, 0, 15)
+            toggleBS.Size = UDim2.new(1, 0, 0, 25)
             toggleBS.Font = Enum.Font.GothamBold
-            toggleBS.Text = "Loading..." 
+            toggleBS.Text = "BS: OFF" 
             toggleBS.TextColor3 = Color3.fromRGB(255, 255, 255)
-            toggleBS.TextSize = 10 -- Teks dikecilkan agar muat
-            
-            local cornerBS = Instance.new("UICorner")
-            cornerBS.CornerRadius = UDim.new(0, 6)
-            cornerBS.Parent = toggleBS
+            toggleBS.TextSize = 9
+            toggleBS.BorderSizePixel = 0
 
-            -- TOMBOL 2: POTATO MODE (Ukuran Mini)
+            -- TOMBOL 2: POTATO MODE
             local togglePotato = Instance.new("TextButton")
             togglePotato.Parent = dragMenu
             togglePotato.BackgroundColor3 = Color3.fromRGB(50, 50, 200)
-            togglePotato.Position = UDim2.new(0, 0, 0, 35) -- Berada pas di bawah tombol BS
-            togglePotato.Size = UDim2.new(1, 0, 0, 30)
+            togglePotato.Position = UDim2.new(0, 0, 0, 40)
+            togglePotato.Size = UDim2.new(1, 0, 0, 25)
             togglePotato.Font = Enum.Font.GothamBold
             togglePotato.Text = "POTATO: OFF" 
             togglePotato.TextColor3 = Color3.fromRGB(255, 255, 255)
-            togglePotato.TextSize = 10 
+            togglePotato.TextSize = 9
+            togglePotato.BorderSizePixel = 0
             
             local cornerPotato = Instance.new("UICorner")
             cornerPotato.CornerRadius = UDim.new(0, 6)
             cornerPotato.Parent = togglePotato
+            
+            local potatoCover = Instance.new("Frame")
+            potatoCover.Parent = togglePotato
+            potatoCover.Size = UDim2.new(1, 0, 0, 3)
+            potatoCover.Position = UDim2.new(0, 0, 0, 0)
+            potatoCover.BackgroundColor3 = togglePotato.BackgroundColor3
+            potatoCover.BorderSizePixel = 0
+
+            -- SCRIPT GESER KHUSUS MOBILE (TOUCH SUPPORT)
+            local dragging = false
+            local dragInput, dragStart, startPos
+
+            dragBar.InputBegan:Connect(function(input)
+                if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                    dragging = true
+                    dragStart = input.Position
+                    startPos = dragMenu.Position
+                    
+                    input.Changed:Connect(function()
+                        if input.UserInputState == Enum.UserInputState.End then
+                            dragging = false
+                        end
+                    end)
+                end
+            end)
+
+            dragBar.InputChanged:Connect(function(input)
+                if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+                    dragInput = input
+                end
+            end)
+
+            UserInputService.InputChanged:Connect(function(input)
+                if input == dragInput and dragging then
+                    local delta = input.Position - dragStart
+                    dragMenu.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+                end
+            end)
 
             -- FUNGSI KLIK BLACK SCREEN
             toggleBS.MouseButton1Click:Connect(function()
@@ -145,6 +207,7 @@ local function InitArsy()
                 isPotato = not isPotato
                 if isPotato then
                     togglePotato.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+                    potatoCover.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
                     togglePotato.Text = "POTATO: ON"
                     
                     pcall(function()
@@ -163,6 +226,7 @@ local function InitArsy()
                     end)
                 else
                     togglePotato.BackgroundColor3 = Color3.fromRGB(50, 50, 200)
+                    potatoCover.BackgroundColor3 = Color3.fromRGB(50, 50, 200)
                     togglePotato.Text = "POTATO: OFF"
                     
                     pcall(function()
