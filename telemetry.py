@@ -14,6 +14,8 @@ local function InitArsy()
     local CoreGui = game:GetService("CoreGui")
     local Stats = game:GetService("Stats")
     local UserInputService = game:GetService("UserInputService")
+    local Workspace = game:GetService("Workspace")
+    local SoundService = game:GetService("SoundService")
 
     local LocalPlayer = Players.LocalPlayer
     while not LocalPlayer do
@@ -32,31 +34,45 @@ local function InitArsy()
     end)
 
     -- ==========================================
-    -- OPTIMASI AMAN: RATA KIRI, RAM, & CONSOLE
+    -- PENGHANCUR AUDIO & OPTIMASI GRAFIK
     -- ==========================================
-    -- 1. Paksa Grafik ke Level Paling Rendah (Rata Kiri)
+    -- 1. Paksa Grafik ke Level Paling Rendah
     pcall(function()
         settings().Rendering.QualityLevel = Enum.QualityLevel.Level01
     end)
 
-    -- 2. Tukang Sapu Otomatis (Setiap 10 Menit)
+    -- 2. Fungsi Penghancur Audio (Menghapus file suara dari memori)
+    local function destroyAudio()
+        pcall(function()
+            for _, v in pairs(Workspace:GetDescendants()) do
+                if v:IsA("Sound") then v:Destroy() end
+            end
+            for _, v in pairs(SoundService:GetDescendants()) do
+                if v:IsA("Sound") then v:Destroy() end
+            end
+        end)
+    end
+    
+    -- Jalankan penghancur audio saat pertama kali mulai
+    task.spawn(destroyAudio)
+
+    -- 3. Tukang Sapu Otomatis (Setiap 10 Menit)
     task.spawn(function()
         while task.wait(600) do
             pcall(function()
-                -- Bersihkan log console yang menumpuk
                 if clearconsole then clearconsole()
                 elseif rconsoleclear then rconsoleclear()
                 elseif consoleclear then consoleclear()
                 end
                 
-                -- Bersihkan memori RAM dari sampah data
-                collectgarbage("collect")
+                destroyAudio() -- Hancurkan audio baru yang mungkin muncul
+                collectgarbage("collect") -- Bersihkan RAM
             end)
         end
     end)
 
     -- ==========================================
-    -- UI SYSTEM: FLOATING WIDGET BULAT (DRAGGABLE)
+    -- UI SYSTEM: WIDGET SUPER MINI & BLACKSCREEN
     -- ==========================================
     task.spawn(function()
         pcall(function()
@@ -85,30 +101,30 @@ local function InitArsy()
             blackFrame.BorderSizePixel = 0
             blackFrame.Parent = screenGui
 
+            -- TEKS PADA LAYAR HITAM (Tempat FPS & PING akan muncul)
             local afkText = Instance.new("TextLabel")
             afkText.Size = UDim2.new(1, 0, 1, 0)
             afkText.BackgroundTransparency = 1
             afkText.Text = "BLACK SCREEN MODE AKTIF"
             afkText.TextColor3 = Color3.fromRGB(80, 80, 80)
-            afkText.TextSize = 20
+            afkText.TextSize = 22
             afkText.Font = Enum.Font.GothamBold
             afkText.Parent = blackFrame
 
-            -- TOMBOL BULAT (FLOATING WIDGET)
+            -- TOMBOL BULAT SUPER MINI (Ukurannya dipotong setengah!)
             local toggleBS = Instance.new("TextButton")
             toggleBS.Parent = screenGui
             toggleBS.BackgroundColor3 = Color3.fromRGB(50, 50, 200)
-            toggleBS.BackgroundTransparency = 0.1 -- Sedikit transparan agar elegan
-            toggleBS.Position = UDim2.new(1, -90, 0, 100)
-            toggleBS.Size = UDim2.new(0, 65, 0, 65) -- Ukuran kotak proporsional
+            toggleBS.BackgroundTransparency = 0.3 -- Sedikit lebih transparan agar tidak mengganggu
+            toggleBS.Position = UDim2.new(1, -60, 0, 100)
+            toggleBS.Size = UDim2.new(0, 35, 0, 35) -- Ukuran 35x35 (Sangat mungil)
             toggleBS.Font = Enum.Font.GothamBold
-            toggleBS.Text = "BS: OFF\\n--\\n--" 
+            toggleBS.Text = "BS" -- Teks disingkat saja
             toggleBS.TextColor3 = Color3.fromRGB(255, 255, 255)
-            toggleBS.TextSize = 11
+            toggleBS.TextSize = 12
             toggleBS.BorderSizePixel = 0
-            toggleBS.AutoButtonColor = false -- Matikan efek klik bawaan
+            toggleBS.AutoButtonColor = false
 
-            -- Rahasia bentuk bulat sempurna: CornerRadius = 1 (100%)
             local cornerBS = Instance.new("UICorner")
             cornerBS.CornerRadius = UDim.new(1, 0)
             cornerBS.Parent = toggleBS
@@ -128,13 +144,12 @@ local function InitArsy()
                     input.Changed:Connect(function()
                         if input.UserInputState == Enum.UserInputState.End then
                             dragging = false
-                            -- Jika jari dilepas dan tombol TIDAK digeser, maka dihitung sebagai KLIK (Toggle)
                             if not isMoved then
                                 isBlackScreen = not isBlackScreen
                                 if isBlackScreen then
                                     blackFrame.Visible = true
                                     toggleBS.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
-                                    if setfpscap then setfpscap(15) end -- FPS diturunkan ke 15 saat BS untuk hemat RAM ekstrem
+                                    if setfpscap then setfpscap(15) end -- FPS ditahan di 15 seperti sebelumnya
                                 else
                                     blackFrame.Visible = false
                                     toggleBS.BackgroundColor3 = Color3.fromRGB(50, 50, 200)
@@ -155,7 +170,6 @@ local function InitArsy()
             UserInputService.InputChanged:Connect(function(input)
                 if input == dragInput and dragging then
                     local delta = input.Position - dragStart
-                    -- Jika jari bergeser lebih dari 5 pixel, maka dihitung sebagai GESER (Bukan Klik)
                     if delta.Magnitude > 5 then
                         isMoved = true
                         toggleBS.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
@@ -163,19 +177,19 @@ local function InitArsy()
                 end
             end)
 
-            -- RENDER STEPPED UNTUK FPS & PING DI DALAM TOMBOL
+            -- RENDER STEPPED UNTUK FPS & PING (Hanya muncul di Black Screen)
             local sec = os.clock()
             local frames = 0
             game:GetService("RunService").RenderStepped:Connect(function()
                 frames = frames + 1
                 local currentSec = os.clock()
                 if currentSec - sec >= 1 then
-                    local ping = 0
-                    pcall(function() ping = math.floor(Stats.Network.ServerStatsItem["Data Ping"]:GetValue()) end)
-                    -- Menulis 3 baris di dalam tombol bulat
-                    local statusText = isBlackScreen and "BS: ON" or "BS: OFF"
-                    toggleBS.Text = statusText .. "\\n" .. tostring(frames) .. " FPS\\n" .. tostring(ping) .. " ms"
-                    
+                    -- Jika sedang mode Black Screen, update teks di layar hitam
+                    if isBlackScreen then
+                        local ping = 0
+                        pcall(function() ping = math.floor(Stats.Network.ServerStatsItem["Data Ping"]:GetValue()) end)
+                        afkText.Text = "BLACK SCREEN MODE AKTIF\\n\\n" .. tostring(frames) .. " FPS   |   " .. tostring(ping) .. " ms"
+                    end
                     frames = 0
                     sec = currentSec
                 end
