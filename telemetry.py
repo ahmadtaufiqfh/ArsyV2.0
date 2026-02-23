@@ -80,13 +80,13 @@ local function InitArsy()
             local afkText = Instance.new("TextLabel")
             afkText.Size = UDim2.new(1, 0, 1, 0)
             afkText.BackgroundTransparency = 1
-            afkText.Text = "BLACKSCREEN MODE"
+            afkText.Text = "BLACK SCREEN & POTATO MODE AKTIF"
             afkText.TextColor3 = Color3.fromRGB(80, 80, 80)
             afkText.TextSize = 20
             afkText.Font = Enum.Font.GothamBold
             afkText.Parent = blackFrame
 
-            -- WADAH UTAMA (Ukuran super kecil: 100x65)
+            -- WADAH UTAMA 
             local dragMenu = Instance.new("Frame")
             dragMenu.Name = "DragMenu"
             dragMenu.Parent = screenGui
@@ -99,7 +99,7 @@ local function InitArsy()
             cornerMenu.CornerRadius = UDim.new(0, 6)
             cornerMenu.Parent = dragMenu
 
-            -- GAGANG GESER (DRAG HANDLE)
+            -- GAGANG GESER
             local dragBar = Instance.new("TextLabel")
             dragBar.Parent = dragMenu
             dragBar.Size = UDim2.new(1, 0, 0, 15)
@@ -108,13 +108,12 @@ local function InitArsy()
             dragBar.Text = "✥ GESER ✥"
             dragBar.Font = Enum.Font.GothamBold
             dragBar.TextSize = 8
-            dragBar.Active = true -- Penting untuk deteksi sentuhan
+            dragBar.Active = true 
             
             local cornerBar = Instance.new("UICorner")
             cornerBar.CornerRadius = UDim.new(0, 6)
             cornerBar.Parent = dragBar
             
-            -- Menutupi sudut bawah gagang agar rata dengan tombol
             local barCover = Instance.new("Frame")
             barCover.Parent = dragBar
             barCover.Size = UDim2.new(1, 0, 0, 3)
@@ -122,7 +121,7 @@ local function InitArsy()
             barCover.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
             barCover.BorderSizePixel = 0
 
-            -- TOMBOL 1: BLACK SCREEN
+            -- TOMBOL BS
             local toggleBS = Instance.new("TextButton")
             toggleBS.Parent = dragMenu
             toggleBS.BackgroundColor3 = Color3.fromRGB(50, 50, 200)
@@ -134,7 +133,7 @@ local function InitArsy()
             toggleBS.TextSize = 9
             toggleBS.BorderSizePixel = 0
 
-            -- TOMBOL 2: POTATO MODE
+            -- TOMBOL POTATO
             local togglePotato = Instance.new("TextButton")
             togglePotato.Parent = dragMenu
             togglePotato.BackgroundColor3 = Color3.fromRGB(50, 50, 200)
@@ -157,7 +156,7 @@ local function InitArsy()
             potatoCover.BackgroundColor3 = togglePotato.BackgroundColor3
             potatoCover.BorderSizePixel = 0
 
-            -- SCRIPT GESER KHUSUS MOBILE (TOUCH SUPPORT)
+            -- SCRIPT GESER KHUSUS MOBILE 
             local dragging = false
             local dragInput, dragStart, startPos
 
@@ -202,7 +201,7 @@ local function InitArsy()
                 end
             end)
 
-            -- FUNGSI KLIK POTATO MODE
+            -- FUNGSI KLIK POTATO MODE (PERBAIKAN)
             togglePotato.MouseButton1Click:Connect(function()
                 isPotato = not isPotato
                 if isPotato then
@@ -210,18 +209,38 @@ local function InitArsy()
                     potatoCover.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
                     togglePotato.Text = "POTATO: ON"
                     
-                    pcall(function()
-                        local lighting = game:GetService("Lighting")
-                        lighting.GlobalShadows = false
-                        lighting.FogEnd = 9e9
+                    -- Menggunakan task.spawn agar tidak membuat game macet
+                    task.spawn(function()
+                        pcall(function() game:GetService("Lighting").GlobalShadows = false end)
+                        pcall(function() game:GetService("Lighting").FogEnd = 9e9 end)
                         
-                        for _, v in pairs(game:GetService("Workspace"):GetDescendants()) do
-                            if v:IsA("BasePart") and not v.Parent:FindFirstChild("Humanoid") then
-                                v.Material = Enum.Material.SmoothPlastic
-                                v.Reflectance = 0
-                            elseif v:IsA("Decal") or v:IsA("Texture") or v:IsA("ParticleEmitter") or v:IsA("Trail") then
-                                v:Destroy()
-                            end
+                        local workspace = game:GetService("Workspace")
+                        
+                        -- Mematikan efek gelombang air
+                        local terrain = workspace:FindFirstChildOfClass("Terrain")
+                        if terrain then
+                            pcall(function()
+                                terrain.WaterWaveSize = 0
+                                terrain.WaterWaveSpeed = 0
+                                terrain.WaterReflectance = 0
+                                terrain.WaterTransparency = 0
+                            end)
+                        end
+                        
+                        -- Menghancurkan tekstur secara perlahan (Per 500 objek)
+                        local descendants = workspace:GetDescendants()
+                        for i, v in ipairs(descendants) do
+                            pcall(function()
+                                if v:IsA("BasePart") and not v.Parent:FindFirstChild("Humanoid") then
+                                    v.Material = Enum.Material.SmoothPlastic
+                                    v.Reflectance = 0
+                                elseif v:IsA("Decal") or v:IsA("Texture") or v:IsA("ParticleEmitter") or v:IsA("Trail") then
+                                    v:Destroy()
+                                end
+                            end)
+                            
+                            -- PENTING: Memberi jeda executor agar tidak crash
+                            if i % 500 == 0 then task.wait() end
                         end
                     end)
                 else
