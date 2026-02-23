@@ -30,9 +30,29 @@ local function InitArsy()
         end
     end)
 
+    -- ==========================================
+    -- AUTO-CLEAN RAM & CONSOLE (Setiap 10 Menit)
+    -- ==========================================
+    task.spawn(function()
+        while task.wait(600) do
+            pcall(function()
+                if clearconsole then clearconsole()
+                elseif rconsoleclear then rconsoleclear()
+                elseif consoleclear then consoleclear()
+                end
+                collectgarbage("collect")
+            end)
+        end
+    end)
+
+    -- ==========================================
+    -- UI SYSTEM (MINI DUAL MODE + DRAGGABLE)
+    -- ==========================================
     task.spawn(function()
         pcall(function()
             local isBlackScreen = false
+            local isPotato = false
+            
             local screenGui = Instance.new("ScreenGui")
             screenGui.Name = "BlackScreen"
             screenGui.IgnoreGuiInset = true 
@@ -48,6 +68,7 @@ local function InitArsy()
             end
             screenGui.Parent = ui_parent
 
+            -- KANVAS HITAM (Untuk Blackscreen)
             local blackFrame = Instance.new("Frame")
             blackFrame.Size = UDim2.new(1, 0, 1, 0) 
             blackFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
@@ -55,33 +76,102 @@ local function InitArsy()
             blackFrame.BorderSizePixel = 0
             blackFrame.Parent = screenGui
 
-            local toggleButton = Instance.new("TextButton")
-            toggleButton.Parent = screenGui
-            toggleButton.BackgroundColor3 = Color3.fromRGB(50, 50, 200)
-            toggleButton.Position = UDim2.new(1, -180, 0, 100)
-            toggleButton.Size = UDim2.new(0, 160, 0, 40)
-            toggleButton.Font = Enum.Font.GothamBold
-            toggleButton.Text = "Loading..." 
-            toggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-            toggleButton.TextSize = 14.000 
-            
-            local uiCorner = Instance.new("UICorner")
-            uiCorner.CornerRadius = UDim.new(0, 8)
-            uiCorner.Parent = toggleButton
+            local afkText = Instance.new("TextLabel")
+            afkText.Size = UDim2.new(1, 0, 1, 0)
+            afkText.BackgroundTransparency = 1
+            afkText.Text = "BLACK SCREEN & POTATO MODE AKTIF"
+            afkText.TextColor3 = Color3.fromRGB(80, 80, 80)
+            afkText.TextSize = 20
+            afkText.Font = Enum.Font.GothamBold
+            afkText.Parent = blackFrame
 
-            toggleButton.MouseButton1Click:Connect(function()
+            -- WADAH TOMBOL (Agar bisa digeser bersamaan)
+            local dragMenu = Instance.new("Frame")
+            dragMenu.Name = "DragMenu"
+            dragMenu.Parent = screenGui
+            dragMenu.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+            dragMenu.BackgroundTransparency = 1 -- Transparan, hanya tombol yang terlihat
+            dragMenu.Position = UDim2.new(1, -130, 0, 80)
+            dragMenu.Size = UDim2.new(0, 115, 0, 65) -- Setengah ukuran dari sebelumnya!
+            dragMenu.Active = true
+            dragMenu.Draggable = true -- FITUR GESER AKTIF
+
+            -- TOMBOL 1: BLACK SCREEN (Ukuran Mini)
+            local toggleBS = Instance.new("TextButton")
+            toggleBS.Parent = dragMenu
+            toggleBS.BackgroundColor3 = Color3.fromRGB(50, 50, 200)
+            toggleBS.Position = UDim2.new(0, 0, 0, 0)
+            toggleBS.Size = UDim2.new(1, 0, 0, 30)
+            toggleBS.Font = Enum.Font.GothamBold
+            toggleBS.Text = "Loading..." 
+            toggleBS.TextColor3 = Color3.fromRGB(255, 255, 255)
+            toggleBS.TextSize = 10 -- Teks dikecilkan agar muat
+            
+            local cornerBS = Instance.new("UICorner")
+            cornerBS.CornerRadius = UDim.new(0, 6)
+            cornerBS.Parent = toggleBS
+
+            -- TOMBOL 2: POTATO MODE (Ukuran Mini)
+            local togglePotato = Instance.new("TextButton")
+            togglePotato.Parent = dragMenu
+            togglePotato.BackgroundColor3 = Color3.fromRGB(50, 50, 200)
+            togglePotato.Position = UDim2.new(0, 0, 0, 35) -- Berada pas di bawah tombol BS
+            togglePotato.Size = UDim2.new(1, 0, 0, 30)
+            togglePotato.Font = Enum.Font.GothamBold
+            togglePotato.Text = "POTATO: OFF" 
+            togglePotato.TextColor3 = Color3.fromRGB(255, 255, 255)
+            togglePotato.TextSize = 10 
+            
+            local cornerPotato = Instance.new("UICorner")
+            cornerPotato.CornerRadius = UDim.new(0, 6)
+            cornerPotato.Parent = togglePotato
+
+            -- FUNGSI KLIK BLACK SCREEN
+            toggleBS.MouseButton1Click:Connect(function()
                 isBlackScreen = not isBlackScreen
                 if isBlackScreen then
                     blackFrame.Visible = true
-                    toggleButton.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+                    toggleBS.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
                     if setfpscap then setfpscap(30) end
                 else
                     blackFrame.Visible = false
-                    toggleButton.BackgroundColor3 = Color3.fromRGB(50, 50, 200)
+                    toggleBS.BackgroundColor3 = Color3.fromRGB(50, 50, 200)
                     if setfpscap then setfpscap(60) end
                 end
             end)
 
+            -- FUNGSI KLIK POTATO MODE
+            togglePotato.MouseButton1Click:Connect(function()
+                isPotato = not isPotato
+                if isPotato then
+                    togglePotato.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+                    togglePotato.Text = "POTATO: ON"
+                    
+                    pcall(function()
+                        local lighting = game:GetService("Lighting")
+                        lighting.GlobalShadows = false
+                        lighting.FogEnd = 9e9
+                        
+                        for _, v in pairs(game:GetService("Workspace"):GetDescendants()) do
+                            if v:IsA("BasePart") and not v.Parent:FindFirstChild("Humanoid") then
+                                v.Material = Enum.Material.SmoothPlastic
+                                v.Reflectance = 0
+                            elseif v:IsA("Decal") or v:IsA("Texture") or v:IsA("ParticleEmitter") or v:IsA("Trail") then
+                                v:Destroy()
+                            end
+                        end
+                    end)
+                else
+                    togglePotato.BackgroundColor3 = Color3.fromRGB(50, 50, 200)
+                    togglePotato.Text = "POTATO: OFF"
+                    
+                    pcall(function()
+                        game:GetService("Lighting").GlobalShadows = true
+                    end)
+                end
+            end)
+
+            -- RENDER STEPPED UNTUK FPS & PING
             local sec = os.clock()
             local frames = 0
             game:GetService("RunService").RenderStepped:Connect(function()
@@ -90,7 +180,7 @@ local function InitArsy()
                 if currentSec - sec >= 1 then
                     local ping = 0
                     pcall(function() ping = math.floor(Stats.Network.ServerStatsItem["Data Ping"]:GetValue()) end)
-                    toggleButton.Text = (isBlackScreen and "ON" or "OFF") .. " | " .. tostring(frames) .. " | " .. tostring(ping) .. "ms"
+                    toggleBS.Text = "BS: " .. (isBlackScreen and "ON" or "OFF") .. " | " .. tostring(frames) .. " | " .. tostring(ping) .. "ms"
                     frames = 0
                     sec = currentSec
                 end
@@ -98,6 +188,9 @@ local function InitArsy()
         end)
     end)
 
+    -- ==========================================
+    -- HEARTBEAT SYSTEM
+    -- ==========================================
     task.spawn(function()
         local function sendHeartbeat()
             local content = tostring(usn) .. "|" .. tostring(os.time()) .. "|" .. tostring(startTime)
@@ -124,19 +217,14 @@ task.spawn(InitArsy)
     for pkg in packages:
         autoexec_path = f"/sdcard/Android/data/{pkg}/files/gloop/external/Autoexecute/arsy.lua"
         
-        # MEMBUAT SEMUA KEMUNGKINAN FOLDER AGAR TIDAK ERROR
         workspaces = [
-            f"/sdcard/Android/data/{pkg}/files/gloop/workspace",
-            f"/sdcard/Android/data/{pkg}/files/delta/workspace",
-            f"/sdcard/Android/data/{pkg}/files/spdm/workspace",
-            f"/sdcard/Android/data/{pkg}/files/codex/workspace",
-            f"/sdcard/Android/data/{pkg}/files/hydrogen/workspace"
+            f"/sdcard/Android/data/{pkg}/files/gloop/external/Workspace"
         ]
         
         os.system(f"su -c 'mkdir -p \"$(dirname \"{autoexec_path}\")\"'")
         for ws in workspaces:
             os.system(f"su -c 'mkdir -p \"{ws}\"'")
-            os.system(f"su -c 'rm -f \"{ws}/arsy_status.txt\"'") # Bersihkan sisa data lama
+            os.system(f"su -c 'rm -f \"{ws}/arsy_status.txt\"'") 
             
         os.system(f"su -c 'cp \"{temp_file_path}\" \"{autoexec_path}\"'")
         
@@ -148,13 +236,8 @@ def get_instances_telemetry(packages):
     current_time = int(time.time()) 
     
     for pkg in packages:
-        # RADAR: MENCARI FILE DI SEMUA FOLDER EXECUTOR POPULER
         possible_paths = [
-            f"/sdcard/Android/data/{pkg}/files/gloop/workspace/arsy_status.txt",
-            f"/sdcard/Android/data/{pkg}/files/delta/workspace/arsy_status.txt",
-            f"/sdcard/Android/data/{pkg}/files/spdm/workspace/arsy_status.txt",
-            f"/sdcard/Android/data/{pkg}/files/codex/workspace/arsy_status.txt",
-            f"/sdcard/Delta/workspace/arsy_status.txt"
+            f"/sdcard/Android/data/{pkg}/files/gloop/external/Workspace/arsy_status.txt"
         ]
         
         output = ""
@@ -163,7 +246,7 @@ def get_instances_telemetry(packages):
                 result = subprocess.run(f"su -c 'cat \"{path}\"'", shell=True, capture_output=True, text=True)
                 if "|" in result.stdout:
                     output = result.stdout.strip()
-                    break # FILE KETEMU! Berhenti mencari.
+                    break 
             except:
                 continue
         
