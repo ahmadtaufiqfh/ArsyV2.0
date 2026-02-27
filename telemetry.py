@@ -1,42 +1,5 @@
-import os
-import time
-import subprocess
-import requests # Ditambahkan untuk mengirim data ke Webhook Discord
-
-# ==========================================
-# KONFIGURASI WEBHOOK TELEMETRI (TERMUX)
-# ==========================================
-# Masukkan link webhook Discord untuk laporan Online/Offline di sini:
-TELEMETRY_WEBHOOK_URL = "ISI_DENGAN_LINK_WEBHOOK_DISCORD_ANDA"
-
-# ==========================================
-# 1. FUNGSI AUTO DETEKSI PACKAGE
-# ==========================================
-def get_auto_packages():
-    packages = []
-    try:
-        # Pindai semua folder di Android/data yang mengandung kata "roblox"
-        result = subprocess.run("su -c 'ls /sdcard/Android/data/'", shell=True, capture_output=True, text=True)
-        for folder in result.stdout.split():
-            if "roblox" in folder.lower():
-                packages.append(folder)
-    except Exception as e:
-        print(f"[!] Gagal mendeteksi package: {e}")
-        
-    # Fallback jika kosong
-    if not packages:
-        print("[!] Menggunakan fallback: com.roblox.client")
-        packages = ["com.roblox.client"]
-        
-    return packages
-
-# ==========================================
-# 2. PAYLOAD LUA (ARSY CONSOLE V4.5)
-# ==========================================
-def deploy_telemetry_lua(packages):
-    lua_script = """
 -- ==========================================
--- ARSY CONSOLE V4.5: FULL TELEMETRY & OPTIMIZED
+-- ARSY CONSOLE V4.6: FULL TELEMETRY, OPTIMIZED & AUTOSAVE
 -- ==========================================
 local CoreGui = game:GetService("CoreGui")
 local UserInputService = game:GetService("UserInputService")
@@ -58,11 +21,12 @@ if targetParent:FindFirstChild("Radar") then
 end
 
 -- ==========================================
--- SISTEM KONFIGURASI WEBHOOK & KEYWORDS
+-- 💾 SISTEM KONFIGURASI WEBHOOK, KEYWORDS & TOGGLES
 -- ==========================================
 local CONFIG_FILE = "Radar_Config.json"
 local webhookLink = ""
 local savedKeywords = {"", "", "", "", "", "", "", "", "", ""}
+local states = { AAFK = false, Ping = false, Radar = false, Opt = false } -- Pindahkan ke atas
 
 pcall(function()
     if isfile(CONFIG_FILE) then
@@ -71,17 +35,29 @@ pcall(function()
         if saved and saved.keywords then 
             for i = 1, 10 do if saved.keywords[i] then savedKeywords[i] = saved.keywords[i] end end
         end
+        -- [BARU] Membaca status on/off terakhir
+        if saved and saved.toggles then
+            states.AAFK = saved.toggles.AAFK or false
+            states.Ping = saved.toggles.Ping or false
+            states.Radar = saved.toggles.Radar or false
+            states.Opt = saved.toggles.Opt or false
+        end
     end
 end)
 
 local function saveConfig()
-    pcall(function() writefile(CONFIG_FILE, HttpService:JSONEncode({webhook = webhookLink, keywords = savedKeywords})) end)
+    pcall(function() 
+        writefile(CONFIG_FILE, HttpService:JSONEncode({
+            webhook = webhookLink, 
+            keywords = savedKeywords,
+            toggles = states -- [BARU] Menyimpan status on/off
+        })) 
+    end)
 end
 
 -- ==========================================
 -- 🛠️ BACKGROUND OPTIMIZER & TELEMETRY
 -- ==========================================
--- 1. HEARTBEAT SYSTEM (Untuk Monitor Python)
 task.spawn(function()
     local LocalPlayer = Players.LocalPlayer
     while not LocalPlayer do task.wait(1); LocalPlayer = Players.LocalPlayer end
@@ -99,7 +75,6 @@ task.spawn(function()
     while task.wait(30) do sendHeartbeat() end
 end)
 
--- 2. AUDIO DESTROYER
 local function destroyAudio()
     pcall(function()
         for _, v in pairs(Workspace:GetDescendants()) do if v:IsA("Sound") then v:Destroy() end end
@@ -108,7 +83,6 @@ local function destroyAudio()
 end
 task.spawn(destroyAudio)
 
--- 3. AUTO SWEEPER (Pembersih RAM tiap 10 menit)
 task.spawn(function()
     while task.wait(600) do
         pcall(function()
@@ -120,15 +94,12 @@ task.spawn(function()
 end)
 
 -- ==========================================
--- VARIABEL UKURAN & POSISI GLOBAL
+-- KANVAS UTAMA & MAIN FRAME
 -- ==========================================
 local UI_WIDTH = 180
 local UI_DASHBOARD_HEIGHT = 128 
 local UI_TRANSPARENCY = 0.3 
 
--- ==========================================
--- KANVAS UTAMA & MAIN FRAME
--- ==========================================
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "Radar" 
 ScreenGui.ResetOnSpawn = false
@@ -165,7 +136,6 @@ ArsyStroke.Thickness = 1
 ArsyStroke.Transparency = 0.5 
 ArsyStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 
--- TEKS PING & FPS DI WIDGET
 local StatsLabel = Instance.new("TextLabel", MainFrame)
 StatsLabel.Size = UDim2.new(0, 59, 1, 0) 
 StatsLabel.Position = UDim2.new(0, 104, 0, 0) 
@@ -187,9 +157,6 @@ CloseBtn.Text = ""
 CloseBtn.ZIndex = 11
 Instance.new("UICorner", CloseBtn).CornerRadius = UDim.new(1, 0)
 
--- ==========================================
--- SCROLLING DASHBOARD
--- ==========================================
 local Dashboard = Instance.new("ScrollingFrame")
 Dashboard.Size = UDim2.new(0, UI_WIDTH, 0, 0) 
 Dashboard.Position = UDim2.new(1, -250, 0, -4)
@@ -213,9 +180,6 @@ DashLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
     Dashboard.CanvasSize = UDim2.new(0, 0, 0, DashLayout.AbsoluteContentSize.Y + 10)
 end)
 
--- ==========================================
--- FUNGSI PEMBUAT MENU
--- ==========================================
 local function createToggleRow(parent, labelText, order, hasDropdown)
     local Row = Instance.new("Frame", parent)
     Row.Size = UDim2.new(1, 0, 0, 28) 
@@ -273,9 +237,6 @@ local function animateToggle(bg, knob, state)
     TweenService:Create(knob, TweenInfo.new(0.2), {Position = goalPos}):Play()
 end
 
--- ==========================================
--- PEMBUATAN ELEMEN MENU
--- ==========================================
 local HeaderRow = Instance.new("Frame", Dashboard)
 HeaderRow.Size = UDim2.new(1, 0, 0, 8) 
 HeaderRow.BackgroundTransparency = 1
@@ -341,7 +302,7 @@ end
 local Opt_ToggleBg, Opt_ToggleKnob = createToggleRow(Dashboard, "Optimization", 5, false)
 
 -- ==========================================
--- ⚙️ LOGIKA SISTEM & SAKELAR 
+-- ⚙️ LOGIKA SISTEM & SAKELAR (AUTOSAVE)
 -- ==========================================
 local isDropdownOpen = false
 RadarDropBtn.MouseButton1Click:Connect(function()
@@ -357,12 +318,13 @@ RadarDropBtn.MouseButton1Click:Connect(function()
     end
 end)
 
-local states = { AAFK = false, Ping = false, Radar = false, Opt = false }
+-- LOGIKA ANTI AFK
 local afkConnections = {}
-
-AAFK_ToggleBg.MouseButton1Click:Connect(function()
-    states.AAFK = not states.AAFK
+local function toggleAAFK(forceState)
+    if forceState ~= nil then states.AAFK = forceState else states.AAFK = not states.AAFK end
     animateToggle(AAFK_ToggleBg, AAFK_ToggleKnob, states.AAFK)
+    saveConfig()
+    
     if states.AAFK then
         pcall(function()
             if getconnections then
@@ -376,16 +338,19 @@ AAFK_ToggleBg.MouseButton1Click:Connect(function()
         for _, connection in ipairs(afkConnections) do pcall(function() connection:Enable() end) end
         afkConnections = {}
     end
-end)
+end
+AAFK_ToggleBg.MouseButton1Click:Connect(function() toggleAAFK() end)
 
+-- LOGIKA PING FPS
 local pingFpsConnection = nil
 local frameCount = 0
 local lastUpdate = os.clock()
-
-Ping_ToggleBg.MouseButton1Click:Connect(function()
-    states.Ping = not states.Ping
+local function togglePing(forceState)
+    if forceState ~= nil then states.Ping = forceState else states.Ping = not states.Ping end
     animateToggle(Ping_ToggleBg, Ping_ToggleKnob, states.Ping)
+    saveConfig()
     StatsLabel.Visible = states.Ping 
+    
     if states.Ping then
         if not pingFpsConnection then
             pingFpsConnection = RunService.RenderStepped:Connect(function()
@@ -406,26 +371,28 @@ Ping_ToggleBg.MouseButton1Click:Connect(function()
         frameCount = 0
         lastUpdate = os.clock()
     end
-end)
+end
+Ping_ToggleBg.MouseButton1Click:Connect(function() togglePing() end)
 
+-- LOGIKA RADAR
 local connectionTCS, connectionLegacy
 local lastMsg = ""
-
 local function sendToDiscord(cleanMsg)
     if not req or webhookLink == "" then return end
-    local timestamp = os.date("[%d/%m/%Y %H:%M:%S]")
-    local finalMessage = timestamp .. " " .. cleanMsg
+    
+    -- Sensor USN
+    local formattedMsg = cleanMsg
+    local prefix, username, rest = string.match(cleanMsg, "(.*%[Server%]%:?%s*)(%S+)(.*)")
+    if prefix and username and rest then formattedMsg = prefix .. "||" .. username .. "||" .. rest end
+
+    local timestamp = os.date("[%d/%m/%y %H:%M]")
+    local finalMessage = timestamp .. " " .. formattedMsg
     if finalMessage == lastMsg then return end
     lastMsg = finalMessage
     
     task.spawn(function()
         local cleanLink = string.gsub(webhookLink, "%?wait=true", "")
-        req({
-            Url = cleanLink,
-            Method = "POST",
-            Headers = { ["Content-Type"] = "application/json" },
-            Body = HttpService:JSONEncode({ content = finalMessage, username = "ARSY RADAR" })
-        })
+        req({Url = cleanLink, Method = "POST", Headers = { ["Content-Type"] = "application/json" }, Body = HttpService:JSONEncode({ content = finalMessage, username = "Server Log" })})
     end)
 end
 
@@ -441,9 +408,7 @@ local function checkMessage(rawMsg)
                 local allWordsFound = true
                 for word in string.gmatch(textLower, "[^+]+") do
                     local cleanWord = string.match(word, "^%s*(.-)%s*$")
-                    if cleanWord ~= "" and not string.find(lowerMsg, cleanWord) then
-                        allWordsFound = false; break
-                    end
+                    if cleanWord ~= "" and not string.find(lowerMsg, cleanWord) then allWordsFound = false; break end
                 end
                 if allWordsFound then isTargetFound = true; break end
             else
@@ -454,9 +419,11 @@ local function checkMessage(rawMsg)
     if isTargetFound then sendToDiscord(cleanMsg) end
 end
 
-RadarToggleBg.MouseButton1Click:Connect(function()
-    states.Radar = not states.Radar
+local function toggleRadar(forceState)
+    if forceState ~= nil then states.Radar = forceState else states.Radar = not states.Radar end
     animateToggle(RadarToggleBg, RadarToggleKnob, states.Radar)
+    saveConfig()
+    
     if states.Radar then
         if webhookLink == "" then
             states.Radar = false
@@ -465,9 +432,7 @@ RadarToggleBg.MouseButton1Click:Connect(function()
             task.wait(1.5); WebhookBox.Text = webhookLink
             return
         end
-        pcall(function()
-            connectionTCS = game:GetService("TextChatService").MessageReceived:Connect(function(t) checkMessage((t.PrefixText or "") .. " " .. (t.Text or "")) end)
-        end)
+        pcall(function() connectionTCS = game:GetService("TextChatService").MessageReceived:Connect(function(t) checkMessage((t.PrefixText or "") .. " " .. (t.Text or "")) end) end)
         pcall(function()
             local ce = game:GetService("ReplicatedStorage"):WaitForChild("DefaultChatSystemChatEvents", 5)
             if ce then connectionLegacy = ce:WaitForChild("OnMessageDoneFiltering", 5).OnClientEvent:Connect(function(d) checkMessage((d.FromSpeaker or "")=="" and ("["..d.OriginalChannel.."] "..d.Message) or ("["..d.OriginalChannel.."] "..d.FromSpeaker..": "..d.Message)) end) end
@@ -476,18 +441,35 @@ RadarToggleBg.MouseButton1Click:Connect(function()
         if connectionTCS then connectionTCS:Disconnect() end
         if connectionLegacy then connectionLegacy:Disconnect() end
     end
-end)
+end
+RadarToggleBg.MouseButton1Click:Connect(function() toggleRadar() end)
 
-Opt_ToggleBg.MouseButton1Click:Connect(function()
-    states.Opt = not states.Opt
+-- LOGIKA OPTIMIZATION
+local function toggleOpt(forceState)
+    if forceState ~= nil then states.Opt = forceState else states.Opt = not states.Opt end
     animateToggle(Opt_ToggleBg, Opt_ToggleKnob, states.Opt)
+    saveConfig()
+    
     if states.Opt then
         pcall(function() settings().Rendering.QualityLevel = Enum.QualityLevel.Level01 end)
     else
         pcall(function() settings().Rendering.QualityLevel = Enum.QualityLevel.Automatic end)
     end
-end)
+end
+Opt_ToggleBg.MouseButton1Click:Connect(function() toggleOpt() end)
 
+
+-- ==========================================
+-- AUTO START FITUR YANG TERSIMPAN
+-- ==========================================
+-- Bagian ini akan otomatis menjalankan logika tombol yang sebelumnya Anda nyalakan
+if states.AAFK then toggleAAFK(true) end
+if states.Ping then togglePing(true) end
+if states.Radar then toggleRadar(true) end
+if states.Opt then toggleOpt(true) end
+
+
+-- LOGIKA BUKA/TUTUP DASHBOARD
 local isDashboardOpen = false
 ArsyBtn.MouseButton1Click:Connect(function() 
     isDashboardOpen = not isDashboardOpen
@@ -526,131 +508,3 @@ UserInputService.InputChanged:Connect(function(input)
         Dashboard.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y + 33)
     end
 end)
-"""
-    current_dir = os.getcwd()
-    temp_file_path = os.path.join(current_dir, "temp_arsy.lua")
-
-    with open(temp_file_path, "w", encoding="utf-8") as f:
-        f.write(lua_script)
-        
-    for pkg in packages:
-        autoexec_path = f"/sdcard/Android/data/{pkg}/files/gloop/external/Autoexecute/arsy.lua"
-        workspaces = [f"/sdcard/Android/data/{pkg}/files/gloop/external/Workspace"]
-        
-        os.system(f"su -c 'mkdir -p \"$(dirname \"{autoexec_path}\")\"'")
-        for ws in workspaces:
-            os.system(f"su -c 'mkdir -p \"{ws}\"'")
-            os.system(f"su -c 'rm -f \"{ws}/arsy_status.txt\"'") 
-            
-        os.system(f"su -c 'cp \"{temp_file_path}\" \"{autoexec_path}\"'")
-        
-    if os.path.exists(temp_file_path):
-        os.remove(temp_file_path)
-
-# ==========================================
-# 3. PEMBACA DATA TELEMETRI
-# ==========================================
-def get_instances_telemetry(packages):
-    instances = []
-    current_time = int(time.time()) 
-    
-    for pkg in packages:
-        possible_paths = [f"/sdcard/Android/data/{pkg}/files/gloop/external/Workspace/arsy_status.txt"]
-        
-        output = ""
-        for path in possible_paths:
-            try:
-                result = subprocess.run(f"su -c 'cat \"{path}\"'", shell=True, capture_output=True, text=True)
-                if "|" in result.stdout:
-                    output = result.stdout.strip()
-                    break 
-            except:
-                continue
-        
-        if "|" in output:
-            parts = output.split("|")
-            usn = parts[0]
-            lua_time = int(parts[1])
-            start_time = int(parts[2]) if len(parts) > 2 else lua_time
-            
-            uptime_sec = current_time - start_time
-            hours, remainder = divmod(uptime_sec, 3600)
-            minutes, seconds = divmod(remainder, 60)
-            uptime_str = f"{hours:02d}h {minutes:02d}m {seconds:02d}s"
-            
-            if current_time - lua_time > 90:
-                status_icon = "🔴"
-                uptime_str = "Offline"
-            else:
-                status_icon = "🟢"
-                
-            instances.append({"usn": usn, "icon": status_icon, "uptime": uptime_str, "status": "Offline" if status_icon == "🔴" else "Online"})
-        else:
-            instances.append({"usn": f"Mencari data... ({pkg})", "icon": "⏳", "uptime": "Memuat...", "status": "Loading"})
-            
-    return instances
-
-# ==========================================
-# 4. DISCORD EMBED SENDER (UI SANGAT RAPI)
-# ==========================================
-def send_discord_report(data):
-    if not TELEMETRY_WEBHOOK_URL or "http" not in TELEMETRY_WEBHOOK_URL:
-        print("[!] Link Webhook Telemetri belum diatur!")
-        return
-
-    # Warna dasar embed: Biru (jika semua online) atau Merah (jika ada yang mati)
-    embed_color = 3066993 # Biru
-    for inst in data:
-        if inst["icon"] == "🔴":
-            embed_color = 16711680 # Merah
-            break
-
-    embed = {
-        "title": "ARSY MONITOR",
-        "description": "Device Stats",
-        "color": embed_color,
-        "fields": [],
-        "footer": {"text": f"Sistem Update • {time.strftime('%d/%m/%Y %H:%M:%S')}"}
-    }
-
-    # Memasukkan data ke dalam Discord Embed
-    for idx, instance in enumerate(data):
-        embed["fields"].append({
-            "name": f"{instance['icon']} Instance {idx+1} | {instance['usn']}",
-            "value": f"**Status:** {instance['status']}\n**Uptime:** {instance['uptime']}",
-            "inline": False
-        })
-
-    payload = {
-        "username": "ARSY MONITOR",
-        "embeds": [embed]
-    }
-
-    try:
-        requests.post(TELEMETRY_WEBHOOK_URL, json=payload)
-        print(f"[+] Laporan Discord terkirim pukul {time.strftime('%H:%M:%S')}")
-    except Exception as e:
-        print(f"[-] Gagal mengirim Webhook Discord: {e}")
-
-# ==========================================
-# 5. MAIN LOOP (JALANKAN DI TERMUX)
-# ==========================================
-if __name__ == "__main__":
-    print("[*] Memulai Arsy Auto-Deployer & Telemetry...")
-    
-    # Otomatis mencari semua clone Roblox di folder Android/data
-    target_packages = get_auto_packages()
-    print(f"[+] Ditemukan {len(target_packages)} package Roblox: {target_packages}")
-    
-    # Menyuntikkan Skrip Lua
-    deploy_telemetry_lua(target_packages)
-    print("[+] File Lua berhasil di-deploy ke semua instance!")
-    print("[*] Masuk ke mode monitoring (Ctrl+C untuk berhenti)...\n")
-    
-    # Loop Abadi untuk mengecek dan melaporkan ke Discord
-    while True:
-        telemetry_data = get_instances_telemetry(target_packages)
-        send_discord_report(telemetry_data)
-        
-        # Jeda waktu lapor (misal: 60 detik)
-        time.sleep(60)
