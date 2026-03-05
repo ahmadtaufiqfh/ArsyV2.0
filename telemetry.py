@@ -1,12 +1,12 @@
 import os
 import time
 import subprocess
-import requests 
+import urllib.request
+import json
 
 # ==========================================
 # KONFIGURASI WEBHOOK TELEMETRI (TERMUX)
 # ==========================================
-# Masukkan link webhook Discord untuk laporan Online/Offline di sini:
 TELEMETRY_WEBHOOK_URL = "ISI_DENGAN_LINK_WEBHOOK_DISCORD_ANDA"
 
 # ==========================================
@@ -15,10 +15,21 @@ TELEMETRY_WEBHOOK_URL = "ISI_DENGAN_LINK_WEBHOOK_DISCORD_ANDA"
 def get_auto_packages():
     packages = []
     try:
-        result = subprocess.run("su -c 'ls /sdcard/Android/data/'", shell=True, capture_output=True, text=True)
-        for folder in result.stdout.split():
-            if "roblox" in folder.lower():
-                packages.append(folder)
+        # Prioritas 1: Mencari di Internal Data (Sesuai update eksekutor terbaru)
+        result_internal = subprocess.run("su -c 'ls /data/data/'", shell=True, capture_output=True, text=True)
+        for folder in result_internal.stdout.split():
+            folder_lower = folder.lower()
+            if "roblox" in folder_lower or "ookami" in folder_lower or "delta" in folder_lower:
+                if folder not in packages:
+                    packages.append(folder)
+                    
+        # Prioritas 2: Mencari di External Data (Sebagai backup)
+        result_external = subprocess.run("su -c 'ls /sdcard/Android/data/'", shell=True, capture_output=True, text=True)
+        for folder in result_external.stdout.split():
+            folder_lower = folder.lower()
+            if "roblox" in folder_lower or "ookami" in folder_lower or "delta" in folder_lower:
+                if folder not in packages:
+                    packages.append(folder)
     except Exception as e:
         print(f"[!] Gagal mendeteksi package: {e}")
         
@@ -541,15 +552,30 @@ end)
         f.write(lua_script)
         
     for pkg in packages:
-        autoexec_path = f"/sdcard/Android/data/{pkg}/files/gloop/external/Autoexecute/arsy.lua"
-        workspaces = [f"/sdcard/Android/data/{pkg}/files/gloop/external/Workspace"]
+        # Penyesuaian Path: Mendaftarkan memori Internal (/data/data/) sesuai pembaruan terbaru
+        target_paths = [
+            # 1. Path Internal (Sesuai Screenshot Anda)
+            {
+                "autoexec": f"/data/data/{pkg}/files/gloop/external/Autoexecute/arsy.lua",
+                "ws": f"/data/data/{pkg}/files/gloop/external/Workspace"
+            },
+            # 2. Path Internal Delta Native
+            {
+                "autoexec": f"/data/data/{pkg}/files/delta/autoexec/arsy.lua",
+                "ws": f"/data/data/{pkg}/files/delta/workspace"
+            },
+            # 3. Path Eksternal (Sebagai Backup)
+            {
+                "autoexec": f"/sdcard/Android/data/{pkg}/files/gloop/external/Autoexecute/arsy.lua",
+                "ws": f"/sdcard/Android/data/{pkg}/files/gloop/external/Workspace"
+            }
+        ]
         
-        os.system(f"su -c 'mkdir -p \"$(dirname \"{autoexec_path}\")\"'")
-        for ws in workspaces:
-            os.system(f"su -c 'mkdir -p \"{ws}\"'")
-            os.system(f"su -c 'rm -f \"{ws}/arsy_status.txt\"'") 
-            
-        os.system(f"su -c 'cp \"{temp_file_path}\" \"{autoexec_path}\"'")
+        for path_data in target_paths:
+            os.system(f"su -c 'mkdir -p \"$(dirname \"{path_data['autoexec']}\")\"'")
+            os.system(f"su -c 'mkdir -p \"{path_data['ws']}\"'")
+            os.system(f"su -c 'rm -f \"{path_data['ws']}/arsy_status.txt\"'") 
+            os.system(f"su -c 'cp \"{temp_file_path}\" \"{path_data['autoexec']}\"'")
         
     if os.path.exists(temp_file_path):
         os.remove(temp_file_path)
@@ -562,7 +588,12 @@ def get_instances_telemetry(packages):
     current_time = int(time.time()) 
     
     for pkg in packages:
-        possible_paths = [f"/sdcard/Android/data/{pkg}/files/gloop/external/Workspace/arsy_status.txt"]
+        # Penyesuaian Path untuk pemantauan Real-Time
+        possible_paths = [
+            f"/data/data/{pkg}/files/gloop/external/Workspace/arsy_status.txt", # Internal Gloop
+            f"/data/data/{pkg}/files/delta/workspace/arsy_status.txt", # Internal Delta
+            f"/sdcard/Android/data/{pkg}/files/gloop/external/Workspace/arsy_status.txt" # Eksternal Backup
+        ]
         
         output = ""
         for path in possible_paths:
@@ -598,7 +629,7 @@ def get_instances_telemetry(packages):
     return instances
 
 # ==========================================
-# 4. DISCORD EMBED SENDER
+# 4. DISCORD EMBED SENDER (DEPENDENCY-FREE)
 # ==========================================
 def send_discord_report(data):
     if not TELEMETRY_WEBHOOK_URL or "http" not in TELEMETRY_WEBHOOK_URL:
@@ -632,7 +663,8 @@ def send_discord_report(data):
     }
 
     try:
-        requests.post(TELEMETRY_WEBHOOK_URL, json=payload)
+        req = urllib.request.Request(TELEMETRY_WEBHOOK_URL, data=json.dumps(payload).encode('utf-8'), headers={'Content-Type': 'application/json'}, method='POST')
+        urllib.request.urlopen(req, timeout=10)
         print(f"[+] Laporan Discord terkirim pukul {time.strftime('%H:%M:%S')}")
     except Exception as e:
         print(f"[-] Gagal mengirim Webhook Discord: {e}")
