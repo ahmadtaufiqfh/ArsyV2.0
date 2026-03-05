@@ -552,19 +552,19 @@ end)
         f.write(lua_script)
         
     for pkg in packages:
-        # Penyesuaian Path: Mendaftarkan memori Internal (/data/data/) sesuai pembaruan terbaru
+        # Penyesuaian Path & Fix Perizinan Akses Root
         target_paths = [
-            # 1. Path Internal (Sesuai Screenshot Anda)
+            # 1. Path Internal (Gloop)
             {
                 "autoexec": f"/data/data/{pkg}/files/gloop/external/Autoexecute/arsy.lua",
                 "ws": f"/data/data/{pkg}/files/gloop/external/Workspace"
             },
-            # 2. Path Internal Delta Native
+            # 2. Path Internal (Delta Native)
             {
                 "autoexec": f"/data/data/{pkg}/files/delta/autoexec/arsy.lua",
                 "ws": f"/data/data/{pkg}/files/delta/workspace"
             },
-            # 3. Path Eksternal (Sebagai Backup)
+            # 3. Path Eksternal (Backup)
             {
                 "autoexec": f"/sdcard/Android/data/{pkg}/files/gloop/external/Autoexecute/arsy.lua",
                 "ws": f"/sdcard/Android/data/{pkg}/files/gloop/external/Workspace"
@@ -572,10 +572,18 @@ end)
         ]
         
         for path_data in target_paths:
-            os.system(f"su -c 'mkdir -p \"$(dirname \"{path_data['autoexec']}\")\"'")
-            os.system(f"su -c 'mkdir -p \"{path_data['ws']}\"'")
-            os.system(f"su -c 'rm -f \"{path_data['ws']}/arsy_status.txt\"'") 
+            auto_dir = f"$(dirname \"{path_data['autoexec']}\")"
+            ws_dir = f"\"{path_data['ws']}\""
+            
+            # Buat direktori dan siapkan file
+            os.system(f"su -c 'mkdir -p {auto_dir}'")
+            os.system(f"su -c 'mkdir -p {ws_dir}'")
+            os.system(f"su -c 'rm -f {ws_dir}/arsy_status.txt'") 
             os.system(f"su -c 'cp \"{temp_file_path}\" \"{path_data['autoexec']}\"'")
+            
+            # CHMOD 777: Memberikan izin penuh kepada Roblox agar bisa mengeksekusi dan menulis log
+            os.system(f"su -c 'chmod -R 777 {auto_dir}'")
+            os.system(f"su -c 'chmod -R 777 {ws_dir}'")
         
     if os.path.exists(temp_file_path):
         os.remove(temp_file_path)
@@ -588,7 +596,6 @@ def get_instances_telemetry(packages):
     current_time = int(time.time()) 
     
     for pkg in packages:
-        # Penyesuaian Path untuk pemantauan Real-Time
         possible_paths = [
             f"/data/data/{pkg}/files/gloop/external/Workspace/arsy_status.txt", # Internal Gloop
             f"/data/data/{pkg}/files/delta/workspace/arsy_status.txt", # Internal Delta
