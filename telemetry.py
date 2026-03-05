@@ -15,7 +15,6 @@ TELEMETRY_WEBHOOK_URL = "ISI_DENGAN_LINK_WEBHOOK_DISCORD_ANDA"
 def get_auto_packages():
     packages = []
     try:
-        # Prioritas 1: Mencari di Internal Data (Sesuai update eksekutor terbaru)
         result_internal = subprocess.run("su -c 'ls /data/data/'", shell=True, capture_output=True, text=True)
         for folder in result_internal.stdout.split():
             folder_lower = folder.lower()
@@ -23,7 +22,6 @@ def get_auto_packages():
                 if folder not in packages:
                     packages.append(folder)
                     
-        # Prioritas 2: Mencari di External Data (Sebagai backup)
         result_external = subprocess.run("su -c 'ls /sdcard/Android/data/'", shell=True, capture_output=True, text=True)
         for folder in result_external.stdout.split():
             folder_lower = folder.lower()
@@ -40,7 +38,40 @@ def get_auto_packages():
     return packages
 
 # ==========================================
-# 2. PAYLOAD LUA (ARSY CONSOLE V4.6)
+# 2. DYNAMIC PATH DISCOVERER (PENCARI OTOMATIS)
+# ==========================================
+def discover_executor_paths(pkg):
+    """Mencari lokasi folder Autoexecute dan Workspace secara dinamis di memori manapun"""
+    paths = []
+    # Menggunakan perintah FIND root untuk mencari folder yang mengandung nama 'autoexec' (case-insensitive)
+    cmd = f"su -c 'find /data/data/{pkg}/ /sdcard/Android/data/{pkg}/ -type d -iname \"*autoexec*\" 2>/dev/null'"
+    try:
+        output = subprocess.check_output(cmd, shell=True).decode('utf-8').strip()
+        if output:
+            for autoexec_dir in output.split('\n'):
+                autoexec_dir = autoexec_dir.strip()
+                if not autoexec_dir: continue
+                
+                # Mundur 1 folder untuk mencari pasangan 'Workspace'-nya
+                base_dir = os.path.dirname(autoexec_dir)
+                
+                # Cari folder workspace yang sejajar
+                ws_cmd = f"su -c 'find \"{base_dir}\" -maxdepth 1 -type d -iname \"*workspace*\" 2>/dev/null'"
+                ws_output = subprocess.check_output(ws_cmd, shell=True).decode('utf-8').strip()
+                ws_dir = ws_output.split('\n')[0] if ws_output else f"{base_dir}/Workspace"
+                
+                paths.append({
+                    "autoexec_dir": autoexec_dir,
+                    "ws_dir": ws_dir,
+                    "lua_file": f"{autoexec_dir}/arsy.lua",
+                    "status_file": f"{ws_dir}/arsy_status.txt"
+                })
+    except:
+        pass
+    return paths
+
+# ==========================================
+# 3. PAYLOAD LUA (ARSY CONSOLE V4.6)
 # ==========================================
 def deploy_telemetry_lua(packages):
     lua_script = """
@@ -551,66 +582,59 @@ end)
     with open(temp_file_path, "w", encoding="utf-8") as f:
         f.write(lua_script)
         
+    print("\n[*] Memindai struktur direktori eksekutor secara dinamis...")
     for pkg in packages:
-        # Penyesuaian Path & Fix Perizinan Akses Root
-        target_paths = [
-            # 1. Path Internal (Gloop)
-            {
-                "autoexec": f"/data/data/{pkg}/files/gloop/external/Autoexecute/arsy.lua",
-                "ws": f"/data/data/{pkg}/files/gloop/external/Workspace"
-            },
-            # 2. Path Internal (Delta Native)
-            {
-                "autoexec": f"/data/data/{pkg}/files/delta/autoexec/arsy.lua",
-                "ws": f"/data/data/{pkg}/files/delta/workspace"
-            },
-            # 3. Path Eksternal (Backup)
-            {
-                "autoexec": f"/sdcard/Android/data/{pkg}/files/gloop/external/Autoexecute/arsy.lua",
-                "ws": f"/sdcard/Android/data/{pkg}/files/gloop/external/Workspace"
-            }
-        ]
+        target_paths = discover_executor_paths(pkg)
         
-        for path_data in target_paths:
-            auto_dir = f"$(dirname \"{path_data['autoexec']}\")"
-            ws_dir = f"\"{path_data['ws']}\""
+        if not target_paths:
+            print(f"[-] Belum ada folder eksekutor di {pkg} (Mungkin game belum pernah dibuka)")
+            continue
             
-            # Buat direktori dan siapkan file
-            os.system(f"su -c 'mkdir -p {auto_dir}'")
-            os.system(f"su -c 'mkdir -p {ws_dir}'")
-            os.system(f"su -c 'rm -f {ws_dir}/arsy_status.txt'") 
-            os.system(f"su -c 'cp \"{temp_file_path}\" \"{path_data['autoexec']}\"'")
+        for pdata in target_paths:
+            auto_dir = pdata["autoexec_dir"]
+            ws_dir = pdata["ws_dir"]
+            lua_file = pdata["lua_file"]
+            status_file = pdata["status_file"]
             
-            # CHMOD 777: Memberikan izin penuh kepada Roblox agar bisa mengeksekusi dan menulis log
-            os.system(f"su -c 'chmod -R 777 {auto_dir}'")
-            os.system(f"su -c 'chmod -R 777 {ws_dir}'")
+            # Buat folder dan salin file
+            os.system(f"su -c 'mkdir -p \"{ws_dir}\"'")
+            os.system(f"su -c 'rm -f \"{status_file}\"'") 
+            os.system(f"su -c 'cp \"{temp_file_path}\" \"{lua_file}\"'")
+            
+            # Fix hak akses Root (Wajib untuk injeksi dinamik)
+            os.system(f"su -c 'chmod -R 777 \"{auto_dir}\"'")
+            os.system(f"su -c 'chmod -R 777 \"{ws_dir}\"'")
+            print(f"[+] Inject otomatis ke: {auto_dir}")
         
     if os.path.exists(temp_file_path):
         os.remove(temp_file_path)
 
 # ==========================================
-# 3. PEMBACA DATA TELEMETRI
+# 4. PEMBACA DATA TELEMETRI
 # ==========================================
 def get_instances_telemetry(packages):
     instances = []
     current_time = int(time.time()) 
     
     for pkg in packages:
-        possible_paths = [
-            f"/data/data/{pkg}/files/gloop/external/Workspace/arsy_status.txt", # Internal Gloop
-            f"/data/data/{pkg}/files/delta/workspace/arsy_status.txt", # Internal Delta
-            f"/sdcard/Android/data/{pkg}/files/gloop/external/Workspace/arsy_status.txt" # Eksternal Backup
-        ]
-        
+        # PENCARIAN FILE DINAMIS: Langsung cari letak arsy_status.txt dimanapun berada
+        search_cmd = f"su -c 'find /data/data/{pkg}/ /sdcard/Android/data/{pkg}/ -type f -name \"arsy_status.txt\" 2>/dev/null'"
         output = ""
-        for path in possible_paths:
-            try:
-                result = subprocess.run(f"su -c 'cat \"{path}\"'", shell=True, capture_output=True, text=True)
-                if "|" in result.stdout:
-                    output = result.stdout.strip()
+        
+        try:
+            result = subprocess.run(search_cmd, shell=True, capture_output=True, text=True)
+            status_files = result.stdout.strip().split('\n')
+            
+            for path in status_files:
+                path = path.strip()
+                if not path: continue
+                # Baca isinya
+                cat_res = subprocess.run(f"su -c 'cat \"{path}\"'", shell=True, capture_output=True, text=True)
+                if "|" in cat_res.stdout:
+                    output = cat_res.stdout.strip()
                     break 
-            except:
-                continue
+        except:
+            pass
         
         if "|" in output:
             parts = output.split("|")
@@ -636,11 +660,10 @@ def get_instances_telemetry(packages):
     return instances
 
 # ==========================================
-# 4. DISCORD EMBED SENDER (DEPENDENCY-FREE)
+# 5. DISCORD EMBED SENDER (DEPENDENCY-FREE)
 # ==========================================
 def send_discord_report(data):
     if not TELEMETRY_WEBHOOK_URL or "http" not in TELEMETRY_WEBHOOK_URL:
-        print("[!] Link Webhook Telemetri belum diatur!")
         return
 
     embed_color = 3066993 
@@ -672,12 +695,11 @@ def send_discord_report(data):
     try:
         req = urllib.request.Request(TELEMETRY_WEBHOOK_URL, data=json.dumps(payload).encode('utf-8'), headers={'Content-Type': 'application/json'}, method='POST')
         urllib.request.urlopen(req, timeout=10)
-        print(f"[+] Laporan Discord terkirim pukul {time.strftime('%H:%M:%S')}")
     except Exception as e:
-        print(f"[-] Gagal mengirim Webhook Discord: {e}")
+        pass
 
 # ==========================================
-# 5. MAIN LOOP
+# 6. MAIN LOOP
 # ==========================================
 if __name__ == "__main__":
     print("[*] Memulai Arsy Auto-Deployer & Telemetry...")
@@ -686,7 +708,6 @@ if __name__ == "__main__":
     print(f"[+] Ditemukan {len(target_packages)} package Roblox: {target_packages}")
     
     deploy_telemetry_lua(target_packages)
-    print("[+] File Lua berhasil di-deploy ke semua instance!")
     print("[*] Masuk ke mode monitoring (Ctrl+C untuk berhenti)...\n")
     
     while True:
