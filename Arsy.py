@@ -16,7 +16,8 @@ def deep_clear_termux():
 
 def drop_android_ram():
     try:
-        os.system("su -c 'sync; echo 3 > /proc/sys/vm/drop_caches'")
+        # Ditambahkan > /dev/null 2>&1 agar jika dilarang sistem Cloud Phone, errornya disembunyikan
+        os.system("su -c 'sync; echo 3 > /proc/sys/vm/drop_caches > /dev/null 2>&1'")
     except:
         pass
 
