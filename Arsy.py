@@ -3,24 +3,21 @@ import time
 import gc
 import sys
 
-# Mengimpor modul-modul yang sudah dipisah, TERMASUK apply_grid_layout
 from utils import clear_screen, load_config, save_config, go_to_home_screen, get_roblox_packages, launch_to_vip_server, clean_system_cache, apply_grid_layout
 from telemetry import deploy_telemetry_lua, get_instances_telemetry
 from discord_bot import generate_log_text, send_discord_report
 
 # ==========================================
-# OPTIMASI 1: PENGHAPUS RAM TERMUX
+# OPTIMASI 1: PENGHAPUS RAM TERMUX (FIXED)
 # ==========================================
 def deep_clear_termux():
-    """Membersihkan layar DAN riwayat scroll (scrollback buffer) secara total"""
-    sys.stdout.write('\033[H\033[3J\033[2J')
-    sys.stdout.flush()
+    """Menggunakan clear bawaan OS agar format terminal (TTY) tidak rusak"""
+    os.system("clear")
 
 # ==========================================
 # OPTIMASI 2: PEMBERSIH RAM KERNEL ANDROID
 # ==========================================
 def drop_android_ram():
-    """Perintah mutlak Root Linux untuk membuang cache RAM Hardware"""
     try:
         os.system("su -c 'sync; echo 3 > /proc/sys/vm/drop_caches'")
     except:
@@ -93,6 +90,8 @@ def run_engine(config):
             time.sleep(5) 
 
 def main():
+    # Jika terminal sempat rusak dari percobaan sebelumnya, kita paksa reset
+    os.system("reset") 
     config = load_config()
     
     while True:
@@ -137,7 +136,7 @@ def main():
                 time.sleep(1)
                 
         # ==========================================
-        # OPSI 4: EKSEKUSI GRID LAYOUT 
+        # OPSI 4: EKSEKUSI GRID LAYOUT (FIXED)
         # ==========================================
         elif choice == '4':
             packages = get_roblox_packages()
@@ -146,11 +145,10 @@ def main():
                 time.sleep(2)
             else:
                 print(f"\n[+] Memulai Setup Grid Layout untuk {len(packages)} aplikasi...")
+                print("[+] Mohon tunggu, sedang menyuntikkan koordinat...")
                 
-                # Sembunyikan Termux agar kita bisa melihat proses pembukaan aplikasi
-                go_to_home_screen() 
-                
-                # Jalankan injeksi dan buka aplikasi satu per satu
+                # Kita TIDAK meminimalkan Termux di sini. Biarkan terbuka.
+                # Perintah monkey dari apply_grid_layout akan menimpa layar dengan sendirinya.
                 apply_grid_layout(packages)
                 
                 print("\n[+] Semua aplikasi telah terbuka dengan layout presisi.")
@@ -162,8 +160,6 @@ def main():
                     os.system(f"su -c 'am force-stop {pkg}'")
                 
                 print("[+] Selesai! Mengembalikan ke menu utama...")
-                # Panggil kembali Termux ke depan (Opsional)
-                os.system("su -c 'am start -n com.termux/com.termux.app.TermuxActivity > /dev/null 2>&1'")
                 time.sleep(2)
 
         elif choice == '0':
