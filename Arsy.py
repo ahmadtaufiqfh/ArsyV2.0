@@ -7,17 +7,14 @@ from utils import clear_screen, load_config, save_config, go_to_home_screen, get
 from telemetry import deploy_telemetry_lua, get_instances_telemetry
 from discord_bot import generate_log_text, send_discord_report
 
-# ==========================================
-# OPTIMASI 1: PENGHAPUS RAM TERMUX (AMANKAN KEYBOARD)
-# ==========================================
 def deep_clear_termux():
-    # Menggunakan ANSI escape code murni agar tidak merusak sistem input keyboard
+    # Hanya menggunakan format clear murni agar Keyboard Termux tidak terkunci (Freeze)
     sys.stdout.write('\033c\033[3J')
     sys.stdout.flush()
 
 def drop_android_ram():
     try:
-        os.system("su -c 'sync; echo 3 > /proc/sys/vm/drop_caches > /dev/null 2>&1'")
+        os.system("su -c 'sync; echo 3 > /proc/sys/vm/drop_caches' > /dev/null 2>&1")
     except:
         pass
 
@@ -32,14 +29,14 @@ def run_engine(config):
     go_to_home_screen()
     
     for pkg in packages:
-        os.system(f"su -c 'am force-stop {pkg}'")
+        os.system(f"su -c 'am force-stop {pkg}' > /dev/null 2>&1")
     
     deploy_telemetry_lua(packages)
     time.sleep(2)
     
     print("\n[+] Memulai peluncuran otomatis ke Server...")
     vip_pkgs = config.get("vip_packages", packages)
-    launch_to_vip_server(packages, config.get("vip_link", ""), config.get("public_link", ""), vip_pkgs)
+    launch_to_vip_server(packages, config.get("vip_link", ""), vip_pkgs)
     
     gc.collect() 
     drop_android_ram()
@@ -109,7 +106,6 @@ def main():
         
         print(f"\n* Jalur Server: {limit_text}")
         print(f"* VIP Link    : {'[Terisi]' if config.get('vip_link') else '[KOSONG]'}")
-        print(f"* Public Link : {'[Terisi]' if config.get('public_link') else '[KOSONG]'}")
         print(f"* Discord     : {'[Terisi]' if config.get('webhook_url') else '[KOSONG]'}")
         
         try:
@@ -121,57 +117,61 @@ def main():
             if not config.get('webhook_url'):
                 print("\n[!] Peringatan: Anda harus mengisi Link Discord!")
                 time.sleep(2)
-            elif not config.get('vip_link') and not config.get('public_link'):
-                print("\n[!] Peringatan: Anda harus mengisi setidaknya satu Link (VIP atau Public) di Menu 2!")
+            elif not config.get('vip_link'):
+                print("\n[!] Peringatan: Anda harus mengisi Link VIP di Menu 2!")
                 time.sleep(2)
             else:
                 run_engine(config)
                 break 
                 
         # ==========================================
-        # MENU 2: PEMBAGIAN JALUR (PACKAGE SELECTOR)
+        # MENU 2: PEMBAGIAN JALUR (PACKAGE SELECTOR UX BARU)
         # ==========================================
         elif choice == '2':
             print("\n=== PENGATURAN LINK SERVER ===")
-            print("Ketik '0' jika ingin MENGHAPUS link, atau cukup tekan ENTER untuk melewati.")
-            
-            print(f"\n1. Link Private (VIP): {config.get('vip_link', 'KOSONG')}")
-            new_vip = input("   Masukkan Link Private baru: ").strip()
+            print(f"1. Link Private (VIP): {config.get('vip_link', 'KOSONG')}")
+            new_vip = input("   Masukkan Link (Ketik 0 untuk Hapus, ENTER untuk Lewati): ").strip()
             if new_vip == '0':
                 config['vip_link'] = ""
             elif new_vip:
                 config['vip_link'] = new_vip
 
-            print(f"\n2. Link Public: {config.get('public_link', 'KOSONG')}")
-            new_pub = input("   Masukkan Link Public baru: ").strip()
-            if new_pub == '0':
-                config['public_link'] = ""
-            elif new_pub:
-                config['public_link'] = new_pub
-
-            print("\n3. Pengaturan Jalur per Aplikasi:")
+            print("\n2. Pengaturan Jalur Aplikasi (VIP vs Public)")
             packages = get_roblox_packages()
-            current_vip_pkgs = config.get("vip_packages", [])
-            new_vip_pkgs = []
+            current_vips = config.get("vip_packages", [])
             
             if not packages:
-                print("   [!] Tidak ada aplikasi Roblox terdeteksi. Silakan clone dulu/gunakan App Cloner!")
+                print("   [!] Tidak ada aplikasi Roblox terdeteksi.")
             else:
-                for i, pkg in enumerate(sorted(packages)):
-                    default_ans = 'y' if (pkg in current_vip_pkgs or not current_vip_pkgs) else 'n'
-                    
-                    ans = input(f"   -> Aplikasi {i+1} [{pkg}] masuk Private Server? (y/n) [{default_ans}]: ").strip().lower()
-                    
-                    if ans == '':
-                        ans = default_ans
-                        
-                    if ans == 'y':
-                        new_vip_pkgs.append(pkg)
+                print("   Daftar Aplikasi Anda:")
+                sorted_pkgs = sorted(packages)
+                for i, pkg in enumerate(sorted_pkgs):
+                    # Tampilkan status saat ini
+                    status = "[VIP]" if (pkg in current_vips or not current_vips) else "[Public]"
+                    print(f"   {i+1}. {pkg} {status}")
+
+                print("\n   -> Ketik NOMOR aplikasi yang ingin dimasukkan ke PRIVATE SERVER.")
+                print("   -> Pisahkan dengan koma (Contoh: 1,2,3,4)")
+                print("   -> Kosongkan (tekan ENTER) jika tidak ingin mengubah data.")
+                print("   -> Ketik '0' jika ingin SEMUA akun masuk PUBLIC.")
+                
+                ans = input("   Pilihan Anda: ").strip()
+                if ans == '0':
+                    config['vip_packages'] = []
+                elif ans != '':
+                    new_vips = []
+                    parts = ans.split(',')
+                    for p in parts:
+                        if p.strip().isdigit():
+                            idx = int(p.strip()) - 1
+                            if 0 <= idx < len(sorted_pkgs):
+                                new_vips.append(sorted_pkgs[idx])
+                    if new_vips:
+                        config['vip_packages'] = new_vips
             
-            config['vip_packages'] = new_vip_pkgs
-            
-            if 'vip_limit' in config:
-                del config['vip_limit']
+            # Membersihkan sisa config lama jika ada
+            if 'public_link' in config: del config['public_link']
+            if 'vip_limit' in config: del config['vip_limit']
                 
             save_config(config)
             print("\n[+] Pengaturan Server Berhasil Disimpan!")
@@ -203,7 +203,7 @@ def main():
                 
                 print("\n[+] Menutup kembali seluruh aplikasi Roblox...")
                 for pkg in packages:
-                    os.system(f"su -c 'am force-stop {pkg}'")
+                    os.system(f"su -c 'am force-stop {pkg}' > /dev/null 2>&1")
                 
                 print("[+] Selesai! Mengembalikan ke menu utama...")
                 time.sleep(2)
@@ -212,7 +212,7 @@ def main():
             print("\n[+] Menutup semua aplikasi Roblox...")
             packages = get_roblox_packages()
             for pkg in packages:
-                os.system(f"su -c 'am force-stop {pkg}'")
+                os.system(f"su -c 'am force-stop {pkg}' > /dev/null 2>&1")
             
             print("[+] Mengosongkan Cache & RAM (Ini mungkin butuh 3 detik)...")
             drop_android_ram()
