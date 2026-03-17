@@ -10,11 +10,12 @@ def clear_screen():
     os.system("clear")
 
 def load_config():
+    # Menambahkan variabel default "vip_packages" berupa List (Daftar)
     default_config = {
         "webhook_url": "", 
         "vip_link": "", 
-        "vip_limit": 0, 
-        "public_link": ""
+        "public_link": "",
+        "vip_packages": [] 
     }
     if os.path.exists(CONFIG_FILE):
         try:
@@ -68,27 +69,29 @@ def get_ram_usage():
         pass
     return "N/A"
 
-def launch_to_vip_server(packages, vip_link, vip_limit=0, public_link=""):
+# ==========================================
+# PERBARUAN: PELUNCURAN BERDASARKAN PACKAGE PILIHAN
+# ==========================================
+def launch_to_vip_server(packages, vip_link, public_link, vip_packages):
     sorted_packages = sorted(packages)
     
-    if vip_limit <= 0 or vip_limit > len(sorted_packages):
-        vip_limit = len(sorted_packages)
-        
-    for i, pkg in enumerate(sorted_packages):
-        if i < vip_limit:
+    for pkg in sorted_packages:
+        # Jika package tersebut ada di dalam daftar pilihan VIP
+        if pkg in vip_packages:
             if vip_link:
                 intent_command = f"su -c 'am start -a android.intent.action.VIEW -d \"{vip_link}\" {pkg} > /dev/null 2>&1'"
-                print(f" -> [{pkg}] Membuka Link VIP...")
+                print(f" -> [{pkg}] Membuka Link Private Server...")
             else:
                 intent_command = f"su -c 'monkey -p {pkg} -c android.intent.category.LAUNCHER 1 > /dev/null 2>&1'"
-                print(f" -> [{pkg}] Membuka Menu Utama (Link VIP Kosong)...")
+                print(f" -> [{pkg}] Membuka Menu Utama (Link Private Kosong)...")
+        # Jika TIDAK ada (berarti user menolak VIP), masukkan ke Public
         else:
             if public_link:
                 intent_command = f"su -c 'am start -a android.intent.action.VIEW -d \"{public_link}\" {pkg} > /dev/null 2>&1'"
-                print(f" -> [{pkg}] Membuka Link Public...")
+                print(f" -> [{pkg}] Membuka Link Public Server...")
             else:
                 intent_command = f"su -c 'monkey -p {pkg} -c android.intent.category.LAUNCHER 1 > /dev/null 2>&1'"
-                print(f" -> [{pkg}] Membuka Menu Utama (Sisa Akun)...")
+                print(f" -> [{pkg}] Membuka Menu Utama (Link Public Kosong)...")
         
         os.system(intent_command)
         time.sleep(10)
