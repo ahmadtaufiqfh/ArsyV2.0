@@ -65,32 +65,51 @@ def clean_system_cache():
     os.system("su -c 'sync; echo 3 > /proc/sys/vm/drop_caches' > /dev/null 2>&1")
 
 # ==========================================
-# PENAMBAHAN FUNGSI GRID LAYOUT (SDCARD + SLOW MODE)
+# PENAMBAHAN FUNGSI GRID LAYOUT (MATEMATIKA PRESISI & SAFE AREA)
 # ==========================================
 def apply_grid_layout(packages):
     count = len(packages)
     if count == 0:
         return
 
-    # Algoritma Matematika Grid Presisi
+    # Algoritma Penentu Kolom & Baris
     cols = 1
     while (cols * cols) < count:
         cols += 1
     rows = (count + cols - 1) // cols
 
     W, H = 1280, 720
-    cellW, cellH = W // cols, H // rows
-    MARGIN, GAP, OFFSET_TOP = 2, 1, 35
+
+    # RUMUS BARU: Menghitung Area Bersih (Safe Area)
+    # Kita buang area Status Bar (atas) dan Navigation Bar (bawah) dari perhitungan
+    SAFE_TOP = 35     # Jarak aman dari jam/baterai atas
+    SAFE_BOTTOM = 45  # Jarak aman dari tombol virtual bawah
+    
+    USABLE_W = W
+    USABLE_H = H - SAFE_TOP - SAFE_BOTTOM
+
+    # Ukuran jendala murni tanpa distorsi
+    cellW = USABLE_W // cols
+    cellH = USABLE_H // rows
+    
+    GAP = 2 # Margin tipis agar rapi
 
     script_content = "#!/system/bin/sh\n"
     for i, pkg in enumerate(sorted(packages)):
         c, r = i % cols, i // cols
-        L = (c * cellW) + MARGIN
-        R = ((c + 1) * cellW) - GAP
-        T = (r * cellH) + OFFSET_TOP
-        B = ((r + 1) * cellH) - GAP
         
-        # Logika 100% sama dengan Bagi.sh agar posisi akurat & Delay ditambah
+        # Penentuan batas setiap sel (Kotak Grid)
+        base_L = c * cellW
+        base_T = SAFE_TOP + (r * cellH)
+        base_R = (c + 1) * cellW
+        base_B = SAFE_TOP + ((r + 1) * cellH)
+
+        # Memasukkan Margin ke dalam batas agar ukuran jendela sama persis
+        L = base_L + GAP
+        T = base_T + GAP
+        R = base_R - GAP
+        B = base_B - GAP
+        
         script_content += f"""
 echo "-> Memproses {pkg}"
 am force-stop {pkg}
@@ -132,6 +151,6 @@ sleep 4
     os.system("su -c 'sh /sdcard/run_grid.sh'")
     
     # Bersihkan sampah
-    os.system("rm /sdcard/run_grid.sh")
+    os.system("su -c 'rm /sdcard/run_grid.sh'")
     if os.path.exists(local_path):
         os.remove(local_path)
