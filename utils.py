@@ -64,7 +64,7 @@ def clean_system_cache():
     os.system("su -c 'sync; echo 3 > /proc/sys/vm/drop_caches' > /dev/null 2>&1")
 
 # ==========================================
-# PENAMBAHAN FUNGSI GRID LAYOUT (FIXED ROOT EXECUTION)
+# PENAMBAHAN FUNGSI GRID LAYOUT (FIXED PATH & EXECUTION)
 # ==========================================
 def apply_grid_layout(packages):
     count = len(packages)
@@ -81,7 +81,6 @@ def apply_grid_layout(packages):
     cellW, cellH = W // cols, H // rows
     MARGIN, GAP, OFFSET_TOP = 2, 1, 35
 
-    # Menggunakan /system/bin/sh yang merupakan standar semua Android
     script_content = "#!/system/bin/sh\n"
     for i, pkg in enumerate(sorted(packages)):
         c, r = i % cols, i // cols
@@ -113,19 +112,16 @@ monkey -p {pkg} -c android.intent.category.LAUNCHER 1 > /dev/null 2>&1
 sleep 1.5
 """
     
-    # Simpan di memori termux lalu pindahkan ke folder root sementara (/data/local/tmp/)
-    local_temp = "temp_grid.txt"
-    root_script = "/data/local/tmp/run_grid.sh"
+    # 1. Dapatkan Alamat Mutlak (Absolute Path) dari lokasi script saat ini
+    abs_path = os.path.abspath("temp_grid.sh")
     
-    with open(local_temp, "w", encoding="utf-8") as f:
+    # 2. Tulis file bash sementaranya
+    with open(abs_path, "w", encoding="utf-8") as f:
         f.write(script_content)
     
-    # Eksekusi dengan aman melalui /system/bin/sh
-    os.system(f"su -c 'cp {local_temp} {root_script}'")
-    os.system(f"su -c 'chmod 777 {root_script}'")
-    os.system(f"su -c 'sh {root_script}'")
+    # 3. Minta Root untuk mengeksekusi file tersebut langsung dari lokasinya!
+    os.system(f"su -c 'sh {abs_path}'")
     
-    # Bersihkan file sampah
-    if os.path.exists(local_temp):
-        os.remove(local_temp)
-    os.system(f"su -c 'rm {root_script}'")
+    # 4. Hapus file sementara setelah proses selesai
+    if os.path.exists(abs_path):
+        os.remove(abs_path)
