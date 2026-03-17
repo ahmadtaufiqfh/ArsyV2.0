@@ -61,11 +61,10 @@ def launch_to_vip_server(packages, vip_link):
         time.sleep(10)
 
 def clean_system_cache():
-    # Pembersihan cache aman untuk background apps
     os.system("su -c 'sync; echo 3 > /proc/sys/vm/drop_caches' > /dev/null 2>&1")
 
 # ==========================================
-# PENAMBAHAN FUNGSI GRID LAYOUT (PENGGANTI BAGI.SH)
+# PENAMBAHAN FUNGSI GRID LAYOUT (FIXED ROOT EXECUTION)
 # ==========================================
 def apply_grid_layout(packages):
     count = len(packages)
@@ -82,8 +81,8 @@ def apply_grid_layout(packages):
     cellW, cellH = W // cols, H // rows
     MARGIN, GAP, OFFSET_TOP = 2, 1, 35
 
-    # Membuat Bash script sementara untuk dieksekusi oleh Root
-    script_content = "#!/bin/bash\n"
+    # Menggunakan /system/bin/sh yang merupakan standar semua Android
+    script_content = "#!/system/bin/sh\n"
     for i, pkg in enumerate(sorted(packages)):
         c, r = i % cols, i // cols
         L = (c * cellW) + MARGIN
@@ -92,24 +91,21 @@ def apply_grid_layout(packages):
         B = ((r + 1) * cellH) - GAP
         
         script_content += f"""
-echo "   -> Menata jendela: {pkg}"
 am force-stop {pkg}
 PREF="/data/data/{pkg}/shared_prefs/{pkg}_preferences.xml"
 TMP="/data/local/tmp/prefs_{pkg}.tmp"
-FINAL="/data/local/tmp/final_{pkg}.xml"
 
 grep -v 'app_cloner_current_window_' $PREF | grep -v '</map>' | grep -v '<?xml' > $TMP 2>/dev/null
 
-echo '<?xml version="1.0" encoding="utf-8" standalone="yes" ?>' > $FINAL
-echo '<map>' >> $FINAL
-cat $TMP >> $FINAL
-echo '    <int name="app_cloner_current_window_left" value="{L}" />' >> $FINAL
-echo '    <int name="app_cloner_current_window_top" value="{T}" />' >> $FINAL
-echo '    <int name="app_cloner_current_window_right" value="{R}" />' >> $FINAL
-echo '    <int name="app_cloner_current_window_bottom" value="{B}" />' >> $FINAL
-echo '</map>' >> $FINAL
+echo '<?xml version="1.0" encoding="utf-8" standalone="yes" ?>' > $PREF
+echo '<map>' >> $PREF
+cat $TMP >> $PREF
+echo '    <int name="app_cloner_current_window_left" value="{L}" />' >> $PREF
+echo '    <int name="app_cloner_current_window_top" value="{T}" />' >> $PREF
+echo '    <int name="app_cloner_current_window_right" value="{R}" />' >> $PREF
+echo '    <int name="app_cloner_current_window_bottom" value="{B}" />' >> $PREF
+echo '</map>' >> $PREF
 
-cp $FINAL $PREF
 OWNER=$(ls -ld /data/data/{pkg} | awk '{{print $3}}')
 chown $OWNER:$OWNER $PREF
 chmod 660 $PREF
@@ -117,12 +113,19 @@ monkey -p {pkg} -c android.intent.category.LAUNCHER 1 > /dev/null 2>&1
 sleep 1.5
 """
     
-    # Simpan dan eksekusi
-    with open("temp_grid.sh", "w") as f:
+    # Simpan di memori termux lalu pindahkan ke folder root sementara (/data/local/tmp/)
+    local_temp = "temp_grid.txt"
+    root_script = "/data/local/tmp/run_grid.sh"
+    
+    with open(local_temp, "w", encoding="utf-8") as f:
         f.write(script_content)
     
-    os.system("su -c 'bash temp_grid.sh'")
+    # Eksekusi dengan aman melalui /system/bin/sh
+    os.system(f"su -c 'cp {local_temp} {root_script}'")
+    os.system(f"su -c 'chmod 777 {root_script}'")
+    os.system(f"su -c 'sh {root_script}'")
     
-    # Hapus file sementara setelah selesai agar bersih
-    if os.path.exists("temp_grid.sh"):
-        os.remove("temp_grid.sh")
+    # Bersihkan file sampah
+    if os.path.exists(local_temp):
+        os.remove(local_temp)
+    os.system(f"su -c 'rm {root_script}'")
