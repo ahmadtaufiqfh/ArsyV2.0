@@ -65,7 +65,7 @@ def clean_system_cache():
     os.system("su -c 'sync; echo 3 > /proc/sys/vm/drop_caches' > /dev/null 2>&1")
 
 # ==========================================
-# PENAMBAHAN FUNGSI GRID LAYOUT (MATEMATIKA ANTI-TUMPUK TITLE BAR)
+# PENAMBAHAN FUNGSI GRID LAYOUT (MATEMATIKA ANTI-GEPENG / PROPORSI ORIGINAL)
 # ==========================================
 def apply_grid_layout(packages):
     count = len(packages)
@@ -80,30 +80,43 @@ def apply_grid_layout(packages):
 
     W, H = 1280, 720
 
-    # KUNCI BARU: Spasi Khusus untuk Title Bar Android
-    TOP_MARGIN = 65     # Jarak dari atas layar (Untuk Status bar + Title bar baris ke-1)
-    BOTTOM_MARGIN = 45  # Jarak dari bawah layar (Untuk tombol Navigasi)
-    TITLE_BAR_GAP = 40  # RUANG KOSONG khusus antar baris agar bar biru tidak menabrak!
-    GAP = 2             # Jarak tipis horizontal antar aplikasi
+    TOP_MARGIN = 65     
+    BOTTOM_MARGIN = 45  
+    TITLE_BAR_GAP = 40  
+    GAP = 2             
 
-    # Hitung tinggi yang benar-benar bisa dipakai (dikurangi total celah Title Bar)
     total_vertical_gaps = (rows - 1) * TITLE_BAR_GAP
     USABLE_H = H - TOP_MARGIN - BOTTOM_MARGIN - total_vertical_gaps
 
     cellW = W // cols
     cellH = USABLE_H // rows
 
+    # KUNCI BARU: Batas Rasio Proporsi Original (16:9 standard landscape)
+    MAX_RATIO = 1.77 
+
     script_content = "#!/system/bin/sh\n"
     for i, pkg in enumerate(sorted(packages)):
         c, r = i % cols, i // cols
         
-        # Horizontal (Kiri-Kanan) tidak ada masalah, tetap pakai GAP
-        L = (c * cellW) + GAP
-        R = ((c + 1) * cellW) - GAP
+        # Hitung ukuran kotak asli
+        app_W = cellW
+        app_H = cellH
+        current_ratio = app_W / app_H
+        offset_X = 0
         
-        # Vertikal (Atas-Bawah) disisipkan TITLE_BAR_GAP untuk setiap baris baru
-        T = TOP_MARGIN + (r * (cellH + TITLE_BAR_GAP)) + GAP
-        B = T + cellH - (GAP * 2)
+        # FITUR ANTI-GEPENG: Jika terlalu lebar, sesuaikan lebarnya dan posisikan di tengah
+        if current_ratio > MAX_RATIO:
+            app_W = int(app_H * MAX_RATIO)
+            offset_X = (cellW - app_W) // 2 
+            
+        cell_L = c * cellW
+        cell_T = TOP_MARGIN + (r * (cellH + TITLE_BAR_GAP))
+        
+        # Eksekusi koordinat dengan perhitungan baru
+        L = cell_L + offset_X + GAP
+        R = cell_L + offset_X + app_W - GAP
+        T = cell_T + GAP
+        B = cell_T + app_H - (GAP * 2)
         
         script_content += f"""
 echo "-> Memproses {pkg}"
@@ -136,17 +149,14 @@ monkey -p {pkg} -c android.intent.category.LAUNCHER 1 > /dev/null 2>&1
 sleep 4
 """
 
-    # Buat file secara lokal
+    import os
     local_path = "temp_grid.sh"
     with open(local_path, "w", encoding="utf-8") as f:
         f.write(script_content)
     
-    # Kopi ke SDCARD agar Root PASTI bisa membacanya
-    import os
     os.system(f"cp {local_path} /sdcard/run_grid.sh")
     os.system("su -c 'sh /sdcard/run_grid.sh'")
     
-    # Bersihkan sampah
     os.system("su -c 'rm /sdcard/run_grid.sh'")
     if os.path.exists(local_path):
         os.remove(local_path)
