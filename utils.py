@@ -1,175 +1,128 @@
 import os
 import time
-import gc
-import sys
+import json
+import subprocess
 
-# Tambahkan apply_grid_layout pada import utils
-from utils import clear_screen, load_config, save_config, go_to_home_screen, get_roblox_packages, launch_to_vip_server, clean_system_cache, apply_grid_layout
-from telemetry import deploy_telemetry_lua, get_instances_telemetry
-from discord_bot import generate_log_text, send_discord_report
+CONFIG_FILE = "config.json"
 
-# ==========================================
-# OPTIMASI 1: PENGHAPUS RAM TERMUX
-# ==========================================
-def deep_clear_termux():
-    sys.stdout.write('\033[H\033[3J\033[2J')
-    sys.stdout.flush()
+def clear_screen():
+    os.system("clear")
 
-# ==========================================
-# OPTIMASI 2: PEMBERSIH RAM KERNEL ANDROID
-# ==========================================
-def drop_android_ram():
+def load_config():
+    if os.path.exists(CONFIG_FILE):
+        with open(CONFIG_FILE, "r") as f:
+            return json.load(f)
+    return {"webhook_url": "", "vip_link": ""}
+
+def save_config(config):
+    with open(CONFIG_FILE, "w") as f:
+        json.dump(config, f, indent=4)
+
+def go_to_home_screen():
+    print("\n[+] Menyembunyikan Termux ke latar belakang...")
+    time.sleep(1)
+    os.system("su -c 'am start -a android.intent.action.MAIN -c android.intent.category.HOME > /dev/null 2>&1'")
+    time.sleep(2)
+
+def get_roblox_packages():
+    packages = []
     try:
-        os.system("su -c 'sync; echo 3 > /proc/sys/vm/drop_caches'")
+        output = subprocess.check_output("su -c 'pm list packages'", shell=True).decode('utf-8')
+        for line in output.splitlines():
+            if 'roblox' in line.lower():
+                packages.append(line.split(':')[1])
     except:
         pass
+    return packages
 
-def run_engine(config):
-    packages = get_roblox_packages()
-    
-    if not packages:
-        print("\n[❌] Tidak ada aplikasi Roblox yang terinstal!")
-        time.sleep(2)
+def get_ram_usage():
+    try:
+        output = subprocess.check_output("su -c 'cat /proc/meminfo'", shell=True).decode('utf-8')
+        mem_total = 0
+        mem_avail = 0
+        for line in output.splitlines():
+            if line.startswith('MemTotal:'):
+                mem_total = int(line.split()[1]) // 1024 
+            elif line.startswith('MemAvailable:') or line.startswith('MemFree:'):
+                if mem_avail == 0: 
+                    mem_avail = int(line.split()[1]) // 1024
+                    
+        if mem_total > 0:
+            mem_used = mem_total - mem_avail
+            return f"{mem_used}MB/{mem_total}MB"
+    except:
+        pass
+    return "N/A"
+
+def launch_to_vip_server(packages, vip_link):
+    for pkg in packages:
+        intent_command = f"su -c 'am start -a android.intent.action.VIEW -d \"{vip_link}\" {pkg}'"
+        os.system(intent_command)
+        time.sleep(10)
+
+def clean_system_cache():
+    # Pembersihan cache aman untuk background apps
+    os.system("su -c 'sync; echo 3 > /proc/sys/vm/drop_caches' > /dev/null 2>&1")
+
+# ==========================================
+# PENAMBAHAN FUNGSI GRID LAYOUT (PENGGANTI BAGI.SH)
+# ==========================================
+def apply_grid_layout(packages):
+    count = len(packages)
+    if count == 0:
         return
 
-    go_to_home_screen()
-    
-    for pkg in packages:
-        os.system(f"su -c 'am force-stop {pkg}'")
-    
-    deploy_telemetry_lua(packages)
-    time.sleep(2)
-    
-    launch_to_vip_server(packages, config["vip_link"])
-    
-    gc.collect() 
-    drop_android_ram()
-    
-    print("\n[+] Menunggu 45 detik agar Roblox memuat game sepenuhnya...")
-    time.sleep(45)
+    # Algoritma Matematika Grid Presisi
+    cols = 1
+    while (cols * cols) < count:
+        cols += 1
+    rows = (count + cols - 1) // cols
 
-    loop_count = 0
-    total_cleans = 0 
+    W, H = 1280, 720
+    cellW, cellH = W // cols, H // rows
+    MARGIN, GAP, OFFSET_TOP = 2, 1, 35
 
-    while True:
-        try:
-            instances_data = get_instances_telemetry(packages)
-            log_text = generate_log_text(instances_data, total_cleans)
-            
-            deep_clear_termux()
-            print("====================================")
-            print("        ARSY V2.0 LIVE MONITOR      ")
-            print("====================================\n")
-            print(log_text)
-            print("\n[!] Mesin stabil berjalan di latar belakang.")
-            print("[!] Laporan Discord di-update setiap 30 detik.")
-            print("[!] Tekan CTRL+C dua kali dengan cepat untuk mematikan bot.")
-            
-            try:
-                send_discord_report(config["webhook_url"], log_text)
-            except Exception as e:
-                print(f"\n[!] Info: Gagal sinkronisasi ke Discord ({e})")
-            
-            del instances_data
-            del log_text
-            gc.collect()
-            
-            time.sleep(30) 
-            
-            loop_count += 1
-            if loop_count >= 20:
-                clean_system_cache()  
-                drop_android_ram()    
-                total_cleans += 1 
-                loop_count = 0 
-                
-        except KeyboardInterrupt:
-            print("\n[!] Peringatan: Input terdeteksi. Skrip menahan diri...")
-            time.sleep(2)
-        except Exception as e:
-            print(f"\n[!] Error fatal pada mesin utama: {e}")
-            time.sleep(5) 
-
-def main():
-    config = load_config()
-    
-    while True:
-        deep_clear_termux()
-        print("====================================")
-        print("        ARSY V2.0 PURE AFK          ")
-        print("====================================")
-        print("[1] Jalankan")
-        print("[2] Link Private server")
-        print("[3] Link Discord")
-        print("[4] Atur Layout Grid")
-        print("[0] Keluar")
-        print("====================================")
+    # Membuat Bash script sementara untuk dieksekusi oleh Root
+    script_content = "#!/bin/bash\n"
+    for i, pkg in enumerate(sorted(packages)):
+        c, r = i % cols, i // cols
+        L = (c * cellW) + MARGIN
+        R = ((c + 1) * cellW) - GAP
+        T = (r * cellH) + OFFSET_TOP
+        B = ((r + 1) * cellH) - GAP
         
-        print(f"\n* VIP Link: {'[Terisi]' if config['vip_link'] else '[KOSONG]'}")
-        print(f"* Discord:  {'[Terisi]' if config['webhook_url'] else '[KOSONG]'}")
-        
-        choice = input("\nPilih Menu (0-4): ")
-        
-        if choice == '1':
-            if not config['vip_link'] or not config['webhook_url']:
-                print("\n[!] Peringatan: Anda harus mengisi Link VIP dan Discord!")
-                time.sleep(2)
-            else:
-                run_engine(config)
-                break 
-        elif choice == '2':
-            print(f"\nLink lama: {config['vip_link']}")
-            new_vip = input("Masukkan Link VIP baru: ")
-            if new_vip.strip():
-                config['vip_link'] = new_vip.strip()
-                save_config(config)
-                print("[+] Disimpan!")
-                time.sleep(1)
-        elif choice == '3':
-            print(f"\nLink lama: {config['webhook_url']}")
-            new_web = input("Masukkan Webhook baru: ")
-            if new_web.strip():
-                config['webhook_url'] = new_web.strip()
-                save_config(config)
-                print("[+] Disimpan!")
-                time.sleep(1)
-                
-        # ==========================================
-        # OPSI 4: EKSEKUSI GRID LAYOUT 
-        # ==========================================
-        elif choice == '4':
-            packages = get_roblox_packages()
-            if not packages:
-                print("\n[!] Tidak ada aplikasi Roblox yang terinstal!")
-                time.sleep(2)
-            else:
-                print(f"\n[+] Memulai Setup Grid Layout untuk {len(packages)} aplikasi...")
-                
-                # Sembunyikan Termux agar kita bisa melihat proses pembukaan aplikasi
-                go_to_home_screen() 
-                
-                # Jalankan injeksi dan buka aplikasi satu per satu
-                apply_grid_layout(packages)
-                
-                print("\n[+] Semua aplikasi telah terbuka dengan layout presisi.")
-                print("[+] Menunggu 5 detik untuk konfirmasi visual di layar...")
-                time.sleep(5)
-                
-                print("\n[+] Menutup kembali seluruh aplikasi Roblox...")
-                for pkg in packages:
-                    os.system(f"su -c 'am force-stop {pkg}'")
-                
-                print("[+] Selesai! Mengembalikan ke menu utama...")
-                # Panggil kembali Termux ke depan (Opsional, tapi membantu alur kerja)
-                os.system("su -c 'am start -n com.termux/com.termux.app.TermuxActivity > /dev/null 2>&1'")
-                time.sleep(2)
+        script_content += f"""
+echo "   -> Menata jendela: {pkg}"
+am force-stop {pkg}
+PREF="/data/data/{pkg}/shared_prefs/{pkg}_preferences.xml"
+TMP="/data/local/tmp/prefs_{pkg}.tmp"
+FINAL="/data/local/tmp/final_{pkg}.xml"
 
-        elif choice == '0':
-            deep_clear_termux()
-            break
-        else:
-            print("Pilihan tidak valid.")
-            time.sleep(1)
+grep -v 'app_cloner_current_window_' $PREF | grep -v '</map>' | grep -v '<?xml' > $TMP 2>/dev/null
 
-if __name__ == "__main__":
-    main()
+echo '<?xml version="1.0" encoding="utf-8" standalone="yes" ?>' > $FINAL
+echo '<map>' >> $FINAL
+cat $TMP >> $FINAL
+echo '    <int name="app_cloner_current_window_left" value="{L}" />' >> $FINAL
+echo '    <int name="app_cloner_current_window_top" value="{T}" />' >> $FINAL
+echo '    <int name="app_cloner_current_window_right" value="{R}" />' >> $FINAL
+echo '    <int name="app_cloner_current_window_bottom" value="{B}" />' >> $FINAL
+echo '</map>' >> $FINAL
+
+cp $FINAL $PREF
+OWNER=$(ls -ld /data/data/{pkg} | awk '{{print $3}}')
+chown $OWNER:$OWNER $PREF
+chmod 660 $PREF
+monkey -p {pkg} -c android.intent.category.LAUNCHER 1 > /dev/null 2>&1
+sleep 1.5
+"""
+    
+    # Simpan dan eksekusi
+    with open("temp_grid.sh", "w") as f:
+        f.write(script_content)
+    
+    os.system("su -c 'bash temp_grid.sh'")
+    
+    # Hapus file sementara setelah selesai agar bersih
+    if os.path.exists("temp_grid.sh"):
+        os.remove("temp_grid.sh")
