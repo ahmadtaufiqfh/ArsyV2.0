@@ -80,7 +80,7 @@ def apply_grid_layout(packages):
     W, H = 1280, 720
 
     # KOREKSI MARGIN: Ditambah agar Title Bar tidak tertabrak jam/sinyal Android
-    TOP_MARGIN = 50      # Dinaikkan dari 35 ke 50 piksel
+    TOP_MARGIN = 40      # Dinaikkan dari 35 ke 50 piksel
     BOTTOM_MARGIN = 15   # Dinaikkan dari 10 ke 15 piksel
     TITLE_BAR_GAP = 32   
     GAP = 1              
