@@ -2,6 +2,7 @@ import os
 import time
 import json
 import subprocess
+import re  # Modul baru untuk mengekstrak ID Game dari Link
 
 CONFIG_FILE = "config.json"
 
@@ -12,7 +13,7 @@ def load_config():
     default_config = {
         "webhook_url": "", 
         "vip_link": "", 
-        "public_link": "", # Dikembalikan agar bisa diset untuk sisa akun
+        "public_link": "", 
         "vip_packages": [] 
     }
     if os.path.exists(CONFIG_FILE):
@@ -37,11 +38,9 @@ def go_to_home_screen():
     os.system("su -c 'am start -a android.intent.action.MAIN -c android.intent.category.HOME' > /dev/null 2>&1")
     time.sleep(2)
 
-# PERBAIKAN FATAL: Memutuskan koneksi Root dari Keyboard Termux agar tidak Freeze
 def get_roblox_packages():
     packages = []
     try:
-        # stdin=subprocess.DEVNULL adalah kunci agar terminal tidak miring/freeze
         result = subprocess.run(["su", "-c", "pm list packages"], capture_output=True, text=True, stdin=subprocess.DEVNULL)
         for line in result.stdout.splitlines():
             if 'roblox' in line.lower():
@@ -69,9 +68,22 @@ def get_ram_usage():
         pass
     return "N/A"
 
+# ==========================================
+# PERBAIKAN: DEEP LINK PROTOCOL (AUTO IN-GAME)
+# ==========================================
 def launch_to_vip_server(packages, vip_link, public_link, vip_packages):
     sorted_packages = sorted(packages)
     
+    # Otomatis mengonversi Link Public biasa menjadi Deep Link Roblox
+    public_intent_link = public_link
+    if public_link and "roblox.com/games/" in public_link:
+        # Mencari angka ID Game di dalam link menggunakan Regex
+        match = re.search(r'games/(\d+)', public_link)
+        if match:
+            place_id = match.group(1)
+            # Format Deep Link rahasia Roblox agar langsung masuk game
+            public_intent_link = f"roblox://placeId={place_id}"
+
     for pkg in sorted_packages:
         if pkg in vip_packages:
             if vip_link:
@@ -81,9 +93,10 @@ def launch_to_vip_server(packages, vip_link, public_link, vip_packages):
                 intent_command = f"su -c 'monkey -p {pkg} -c android.intent.category.LAUNCHER 1' > /dev/null 2>&1"
                 print(f" -> [{pkg}] Membuka Menu Utama (Link Private Kosong)...")
         else:
-            if public_link:
-                intent_command = f"su -c 'am start -a android.intent.action.VIEW -d \"{public_link}\" {pkg}' > /dev/null 2>&1"
-                print(f" -> [{pkg}] Membuka Link Public Server...")
+            if public_intent_link:
+                # Menggunakan Deep Link yang sudah diekstrak
+                intent_command = f"su -c 'am start -a android.intent.action.VIEW -d \"{public_intent_link}\" {pkg}' > /dev/null 2>&1"
+                print(f" -> [{pkg}] Membuka Link Public Server (Direct Play)...")
             else:
                 intent_command = f"su -c 'monkey -p {pkg} -c android.intent.category.LAUNCHER 1' > /dev/null 2>&1"
                 print(f" -> [{pkg}] Membuka Menu Utama (Link Public Kosong)...")
