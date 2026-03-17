@@ -62,10 +62,10 @@ def launch_to_vip_server(packages, vip_link):
         time.sleep(10)
 
 def clean_system_cache():
-    os.system("su -c 'sync; echo 3 > /proc/sys/vm/drop_caches' > /dev/null 2>&1")
+    os.system("su -c 'sync; echo 3 > /proc/sys/vm/drop_caches > /dev/null 2>&1'")
 
 # ==========================================
-# PENAMBAHAN FUNGSI GRID LAYOUT (FINE-TUNING MARGIN ATAS)
+# PENAMBAHAN FUNGSI GRID LAYOUT (RAPAT TENGAH)
 # ==========================================
 def apply_grid_layout(packages):
     count = len(packages)
@@ -79,9 +79,8 @@ def apply_grid_layout(packages):
 
     W, H = 1280, 720
 
-    # KOREKSI MARGIN: Ditambah agar Title Bar tidak tertabrak jam/sinyal Android
-    TOP_MARGIN = 45      # Dinaikkan dari 35 ke 50 piksel
-    BOTTOM_MARGIN = 15   # Dinaikkan dari 10 ke 15 piksel
+    TOP_MARGIN = 45      
+    BOTTOM_MARGIN = 15   
     TITLE_BAR_GAP = 32   
     GAP = 1              
 
@@ -93,26 +92,28 @@ def apply_grid_layout(packages):
 
     MAX_RATIO = 1.85 
 
+    # --- RUMUS BARU: Hitung total lebar agar bisa ditaruh di tengah ---
+    app_W = cellW
+    app_H = cellH
+    if (app_W / app_H) > MAX_RATIO:
+        app_W = int(app_H * MAX_RATIO)
+        
+    # Lebar total semua aplikasi + jarak antaranya
+    total_grid_width = (cols * app_W) + ((cols - 1) * (GAP * 2))
+    # Titik awal paling kiri agar grup aplikasi berada tepat di tengah layar
+    start_X = (W - total_grid_width) // 2
+
     script_content = "#!/system/bin/sh\n"
     for i, pkg in enumerate(sorted(packages)):
         c, r = i % cols, i // cols
         
-        app_W = cellW
-        app_H = cellH
-        current_ratio = app_W / app_H
-        offset_X = 0
+        # Koordinat Horizontal (Rapat ke tengah)
+        L = start_X + (c * (app_W + (GAP * 2)))
+        R = L + app_W
         
-        if current_ratio > MAX_RATIO:
-            app_W = int(app_H * MAX_RATIO)
-            offset_X = (cellW - app_W) // 2 
-            
-        cell_L = c * cellW
-        cell_T = TOP_MARGIN + (r * (cellH + TITLE_BAR_GAP))
-        
-        L = cell_L + offset_X + GAP
-        R = cell_L + offset_X + app_W - GAP
-        T = cell_T + GAP
-        B = cell_T + app_H - GAP
+        # Koordinat Vertikal (Tetap proporsional)
+        T = TOP_MARGIN + (r * (cellH + TITLE_BAR_GAP)) + GAP
+        B = T + app_H - (GAP * 2)
         
         script_content += f"""
 echo "-> Memproses {pkg}"
