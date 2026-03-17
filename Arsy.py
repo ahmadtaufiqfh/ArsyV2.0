@@ -34,8 +34,9 @@ def run_engine(config):
     time.sleep(2)
     
     print("\n[+] Memulai peluncuran otomatis ke Server...")
-    # Mengeksekusi peluncuran server dengan batas yang sudah diatur di Menu 2
-    launch_to_vip_server(packages, config.get("vip_link", ""), config.get("vip_limit", 0), config.get("public_link", ""))
+    # Menjalankan aplikasi dengan membawa daftar aplikasi yang berhak masuk VIP
+    vip_pkgs = config.get("vip_packages", packages)
+    launch_to_vip_server(packages, config.get("vip_link", ""), config.get("public_link", ""), vip_pkgs)
     
     gc.collect() 
     drop_android_ram()
@@ -101,8 +102,10 @@ def main():
         print("[0] Keluar & Bersihkan")
         print("====================================")
         
-        limit_text = "[Semua Akun]" if config.get("vip_limit", 0) == 0 else f"[{config.get('vip_limit')} Akun]"
-        print(f"\n* Target VIP  : {limit_text}")
+        vip_pkgs = config.get("vip_packages", [])
+        limit_text = f"[{len(vip_pkgs)} Akun VIP]" if vip_pkgs else "[Belum diset/Semua VIP]"
+        
+        print(f"\n* Jalur Server: {limit_text}")
         print(f"* VIP Link    : {'[Terisi]' if config.get('vip_link') else '[KOSONG]'}")
         print(f"* Public Link : {'[Terisi]' if config.get('public_link') else '[KOSONG]'}")
         print(f"* Discord     : {'[Terisi]' if config.get('webhook_url') else '[KOSONG]'}")
@@ -121,33 +124,54 @@ def main():
                 break 
                 
         # ==========================================
-        # MENU 2: PENGATURAN LINK SPLIT (VIP & PUBLIC)
+        # MENU 2: PEMBAGIAN JALUR (PACKAGE SELECTOR)
         # ==========================================
         elif choice == '2':
             print("\n=== PENGATURAN LINK SERVER ===")
             print("Ketik '0' jika ingin MENGHAPUS link, atau cukup tekan ENTER untuk melewati.")
             
-            print(f"\n1. Link VIP Utama: {config.get('vip_link', 'KOSONG')}")
-            new_vip = input("   Masukkan Link VIP baru: ").strip()
+            print(f"\n1. Link Private (VIP): {config.get('vip_link', 'KOSONG')}")
+            new_vip = input("   Masukkan Link Private baru: ").strip()
             if new_vip == '0':
                 config['vip_link'] = ""
             elif new_vip:
                 config['vip_link'] = new_vip
 
-            print(f"\n2. Batas Akun VIP: {config.get('vip_limit', 0)}")
-            print("   (Contoh: Jika diisi 4, maka 4 akun pertama masuk VIP. Ketik 0 agar SEMUA masuk VIP)")
-            limit_input = input("   Berapa akun yang masuk VIP? : ").strip()
-            if limit_input.isdigit():
-                config['vip_limit'] = int(limit_input)
-
-            print(f"\n3. Link Public / Sisa: {config.get('public_link', 'KOSONG')}")
-            print("   (Link ini dipakai untuk sisa akun. Kosongkan jika ingin sisa akun hanya diam di menu Roblox)")
+            print(f"\n2. Link Public: {config.get('public_link', 'KOSONG')}")
             new_pub = input("   Masukkan Link Public baru: ").strip()
             if new_pub == '0':
                 config['public_link'] = ""
             elif new_pub:
                 config['public_link'] = new_pub
 
+            print("\n3. Pengaturan Jalur per Aplikasi:")
+            packages = get_roblox_packages()
+            current_vip_pkgs = config.get("vip_packages", [])
+            new_vip_pkgs = []
+            
+            if not packages:
+                print("   [!] Tidak ada aplikasi Roblox terdeteksi. Silakan clone dulu/gunakan App Cloner!")
+            else:
+                for i, pkg in enumerate(sorted(packages)):
+                    # Jika sebelumnya sudah diset masuk VIP (atau konfigurasi masih kosong/baru pertama pakai), default = 'y'
+                    default_ans = 'y' if (pkg in current_vip_pkgs or not current_vip_pkgs) else 'n'
+                    
+                    # Bertanya pada user satu per satu
+                    ans = input(f"   -> Aplikasi {i+1} [{pkg}] masuk Private Server? (y/n) [{default_ans}]: ").strip().lower()
+                    
+                    # Jika ditekan enter saja (kosong), gunakan jawaban default
+                    if ans == '':
+                        ans = default_ans
+                        
+                    if ans == 'y':
+                        new_vip_pkgs.append(pkg)
+            
+            config['vip_packages'] = new_vip_pkgs
+            
+            # Membersihkan konfigurasi 'vip_limit' versi lama (jika masih tersangkut di file)
+            if 'vip_limit' in config:
+                del config['vip_limit']
+                
             save_config(config)
             print("\n[+] Pengaturan Server Berhasil Disimpan!")
             time.sleep(2)
