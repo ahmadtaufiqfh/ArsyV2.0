@@ -65,7 +65,7 @@ def clean_system_cache():
     os.system("su -c 'sync; echo 3 > /proc/sys/vm/drop_caches' > /dev/null 2>&1")
 
 # ==========================================
-# PENAMBAHAN FUNGSI GRID LAYOUT (MATEMATIKA PRESISI FINAL)
+# PENAMBAHAN FUNGSI GRID LAYOUT (MATEMATIKA ANTI-TUMPUK TITLE BAR)
 # ==========================================
 def apply_grid_layout(packages):
     count = len(packages)
@@ -80,36 +80,37 @@ def apply_grid_layout(packages):
 
     W, H = 1280, 720
 
-    # KUNCI UTAMA: Menentukan Area Aman
-    TOP_MARGIN = 60    # Turunkan 60px agar terhindar dari Status Bar & jam Android
-    BOTTOM_MARGIN = 45 # Naikkan 45px agar terhindar dari tombol navigasi bawah
-    GAP = 2            # Jarak antar jendela aplikasi (tipis)
+    # KUNCI BARU: Spasi Khusus untuk Title Bar Android
+    TOP_MARGIN = 65     # Jarak dari atas layar (Untuk Status bar + Title bar baris ke-1)
+    BOTTOM_MARGIN = 45  # Jarak dari bawah layar (Untuk tombol Navigasi)
+    TITLE_BAR_GAP = 40  # RUANG KOSONG khusus antar baris agar bar biru tidak menabrak!
+    GAP = 2             # Jarak tipis horizontal antar aplikasi
 
-    # Menghitung Ruang yang Benar-Benar Bisa Dipakai
-    USABLE_W = W
-    USABLE_H = H - TOP_MARGIN - BOTTOM_MARGIN
+    # Hitung tinggi yang benar-benar bisa dipakai (dikurangi total celah Title Bar)
+    total_vertical_gaps = (rows - 1) * TITLE_BAR_GAP
+    USABLE_H = H - TOP_MARGIN - BOTTOM_MARGIN - total_vertical_gaps
 
-    cellW = USABLE_W // cols
+    cellW = W // cols
     cellH = USABLE_H // rows
 
     script_content = "#!/system/bin/sh\n"
     for i, pkg in enumerate(sorted(packages)):
         c, r = i % cols, i // cols
         
-        # Perhitungan Mutlak Anti-Tumpuk
+        # Horizontal (Kiri-Kanan) tidak ada masalah, tetap pakai GAP
         L = (c * cellW) + GAP
         R = ((c + 1) * cellW) - GAP
         
-        # Titik Top dimulai dari TOP_MARGIN, lalu ditambah urutan barisnya
-        T = TOP_MARGIN + (r * cellH) + GAP
-        B = TOP_MARGIN + ((r + 1) * cellH) - GAP
+        # Vertikal (Atas-Bawah) disisipkan TITLE_BAR_GAP untuk setiap baris baru
+        T = TOP_MARGIN + (r * (cellH + TITLE_BAR_GAP)) + GAP
+        B = T + cellH - (GAP * 2)
         
         script_content += f"""
 echo "-> Memproses {pkg}"
 am force-stop {pkg}
 
 PREF_FILE="/data/data/{pkg}/shared_prefs/{pkg}_preferences.xml"
-TMP_FILE="/data/local/tmp/prefs.tmp"
+TMP_FILE="/data/local/tmp/prefs_{pkg}.tmp"
 
 grep -v 'app_cloner_current_window_' $PREF_FILE | grep -v '</map>' > $TMP_FILE 2>/dev/null
 
@@ -140,8 +141,8 @@ sleep 4
     with open(local_path, "w", encoding="utf-8") as f:
         f.write(script_content)
     
-    # Kopi ke SDCARD agar Root membacanya tanpa error direktori
-    import os # memastikan os terpanggil
+    # Kopi ke SDCARD agar Root PASTI bisa membacanya
+    import os
     os.system(f"cp {local_path} /sdcard/run_grid.sh")
     os.system("su -c 'sh /sdcard/run_grid.sh'")
     
