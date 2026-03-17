@@ -6,15 +6,12 @@ import subprocess
 CONFIG_FILE = "config.json"
 
 def clear_screen():
-    os.system("stty sane")
     os.system("clear")
 
 def load_config():
-    # Menambahkan variabel default "vip_packages" berupa List (Daftar)
     default_config = {
         "webhook_url": "", 
         "vip_link": "", 
-        "public_link": "",
         "vip_packages": [] 
     }
     if os.path.exists(CONFIG_FILE):
@@ -36,7 +33,7 @@ def save_config(config):
 def go_to_home_screen():
     print("\n[+] Menyembunyikan Termux ke latar belakang...")
     time.sleep(1)
-    os.system("su -c 'am start -a android.intent.action.MAIN -c android.intent.category.HOME > /dev/null 2>&1'")
+    os.system("su -c 'am start -a android.intent.action.MAIN -c android.intent.category.HOME' > /dev/null 2>&1")
     time.sleep(2)
 
 def get_roblox_packages():
@@ -69,35 +66,28 @@ def get_ram_usage():
         pass
     return "N/A"
 
-# ==========================================
-# PERBARUAN: PELUNCURAN BERDASARKAN PACKAGE PILIHAN
-# ==========================================
-def launch_to_vip_server(packages, vip_link, public_link, vip_packages):
+def launch_to_vip_server(packages, vip_link, vip_packages):
     sorted_packages = sorted(packages)
     
     for pkg in sorted_packages:
-        # Jika package tersebut ada di dalam daftar pilihan VIP
         if pkg in vip_packages:
             if vip_link:
-                intent_command = f"su -c 'am start -a android.intent.action.VIEW -d \"{vip_link}\" {pkg} > /dev/null 2>&1'"
+                intent_command = f"su -c 'am start -a android.intent.action.VIEW -d \"{vip_link}\" {pkg}' > /dev/null 2>&1"
                 print(f" -> [{pkg}] Membuka Link Private Server...")
             else:
-                intent_command = f"su -c 'monkey -p {pkg} -c android.intent.category.LAUNCHER 1 > /dev/null 2>&1'"
+                intent_command = f"su -c 'monkey -p {pkg} -c android.intent.category.LAUNCHER 1' > /dev/null 2>&1"
                 print(f" -> [{pkg}] Membuka Menu Utama (Link Private Kosong)...")
-        # Jika TIDAK ada (berarti user menolak VIP), masukkan ke Public
         else:
-            if public_link:
-                intent_command = f"su -c 'am start -a android.intent.action.VIEW -d \"{public_link}\" {pkg} > /dev/null 2>&1'"
-                print(f" -> [{pkg}] Membuka Link Public Server...")
-            else:
-                intent_command = f"su -c 'monkey -p {pkg} -c android.intent.category.LAUNCHER 1 > /dev/null 2>&1'"
-                print(f" -> [{pkg}] Membuka Menu Utama (Link Public Kosong)...")
+            # Otomatis Buka App Default (Public)
+            intent_command = f"su -c 'monkey -p {pkg} -c android.intent.category.LAUNCHER 1' > /dev/null 2>&1"
+            print(f" -> [{pkg}] Membuka Menu Utama (Public/Normal)...")
         
         os.system(intent_command)
         time.sleep(10)
 
 def clean_system_cache():
-    os.system("su -c 'sync; echo 3 > /proc/sys/vm/drop_caches > /dev/null 2>&1'")
+    # Menaruh tag silent di luar kutip agar menutupi error sh bawaan Redfinger
+    os.system("su -c 'sync; echo 3 > /proc/sys/vm/drop_caches' > /dev/null 2>&1")
 
 def apply_grid_layout(packages):
     count = len(packages)
