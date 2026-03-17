@@ -8,8 +8,7 @@ from telemetry import deploy_telemetry_lua, get_instances_telemetry
 from discord_bot import generate_log_text, send_discord_report
 
 def deep_clear_termux():
-    # Hanya menggunakan format clear murni agar Keyboard Termux tidak terkunci (Freeze)
-    sys.stdout.write('\033c\033[3J')
+    sys.stdout.write('\033c')
     sys.stdout.flush()
 
 def drop_android_ram():
@@ -36,7 +35,8 @@ def run_engine(config):
     
     print("\n[+] Memulai peluncuran otomatis ke Server...")
     vip_pkgs = config.get("vip_packages", packages)
-    launch_to_vip_server(packages, config.get("vip_link", ""), vip_pkgs)
+    # Memasukkan link public ke fungsi peluncur
+    launch_to_vip_server(packages, config.get("vip_link", ""), config.get("public_link", ""), vip_pkgs)
     
     gc.collect() 
     drop_android_ram()
@@ -87,6 +87,8 @@ def run_engine(config):
             time.sleep(5) 
 
 def main():
+    # Pastikan bersih sekali saat awal
+    deep_clear_termux()
     config = load_config()
     
     while True:
@@ -106,6 +108,7 @@ def main():
         
         print(f"\n* Jalur Server: {limit_text}")
         print(f"* VIP Link    : {'[Terisi]' if config.get('vip_link') else '[KOSONG]'}")
+        print(f"* Public Link : {'[Terisi]' if config.get('public_link') else '[KOSONG]'}")
         print(f"* Discord     : {'[Terisi]' if config.get('webhook_url') else '[KOSONG]'}")
         
         try:
@@ -117,27 +120,35 @@ def main():
             if not config.get('webhook_url'):
                 print("\n[!] Peringatan: Anda harus mengisi Link Discord!")
                 time.sleep(2)
-            elif not config.get('vip_link'):
-                print("\n[!] Peringatan: Anda harus mengisi Link VIP di Menu 2!")
+            elif not config.get('vip_link') and not config.get('public_link'):
+                print("\n[!] Peringatan: Anda harus mengisi setidaknya satu Link (VIP atau Public) di Menu 2!")
                 time.sleep(2)
             else:
                 run_engine(config)
                 break 
                 
         # ==========================================
-        # MENU 2: PEMBAGIAN JALUR (PACKAGE SELECTOR UX BARU)
+        # MENU 2: PENGATURAN AMAN ANTI-FREEZE
         # ==========================================
         elif choice == '2':
             print("\n=== PENGATURAN LINK SERVER ===")
-            print(f"1. Link Private (VIP): {config.get('vip_link', 'KOSONG')}")
-            new_vip = input("   Masukkan Link (Ketik 0 untuk Hapus, ENTER untuk Lewati): ").strip()
+            print("1. Link Private (VIP):", config.get('vip_link', 'KOSONG'))
+            new_vip = input("   Masukkan Link (Ketik 0 untuk Hapus, ENTER lewati): ").strip()
             if new_vip == '0':
                 config['vip_link'] = ""
             elif new_vip:
                 config['vip_link'] = new_vip
 
-            print("\n2. Pengaturan Jalur Aplikasi (VIP vs Public)")
-            packages = get_roblox_packages()
+            print("\n2. Link Public (Untuk sisa akun):", config.get('public_link', 'KOSONG'))
+            print("   Catatan: Masukkan link game agar sisa akun ikut bermain di Public Server.")
+            new_pub = input("   Masukkan Link (Ketik 0 untuk Hapus, ENTER lewati): ").strip()
+            if new_pub == '0':
+                config['public_link'] = ""
+            elif new_pub:
+                config['public_link'] = new_pub
+
+            print("\n3. Pengaturan Jalur Aplikasi (VIP vs Public)")
+            packages = get_roblox_packages() # <-- Tidak akan merusak TTY lagi
             current_vips = config.get("vip_packages", [])
             
             if not packages:
@@ -146,12 +157,12 @@ def main():
                 print("   Daftar Aplikasi Anda:")
                 sorted_pkgs = sorted(packages)
                 for i, pkg in enumerate(sorted_pkgs):
-                    # Tampilkan status saat ini
                     status = "[VIP]" if (pkg in current_vips or not current_vips) else "[Public]"
                     print(f"   {i+1}. {pkg} {status}")
 
                 print("\n   -> Ketik NOMOR aplikasi yang ingin dimasukkan ke PRIVATE SERVER.")
-                print("   -> Pisahkan dengan koma (Contoh: 1,2,3,4)")
+                print("   -> Pisahkan dengan koma (Contoh: 1,2,3)")
+                print("   -> Sisa nomor yang tidak diketik akan otomatis masuk PUBLIC SERVER.")
                 print("   -> Kosongkan (tekan ENTER) jika tidak ingin mengubah data.")
                 print("   -> Ketik '0' jika ingin SEMUA akun masuk PUBLIC.")
                 
@@ -168,10 +179,6 @@ def main():
                                 new_vips.append(sorted_pkgs[idx])
                     if new_vips:
                         config['vip_packages'] = new_vips
-            
-            # Membersihkan sisa config lama jika ada
-            if 'public_link' in config: del config['public_link']
-            if 'vip_limit' in config: del config['vip_limit']
                 
             save_config(config)
             print("\n[+] Pengaturan Server Berhasil Disimpan!")
