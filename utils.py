@@ -65,14 +65,13 @@ def clean_system_cache():
     os.system("su -c 'sync; echo 3 > /proc/sys/vm/drop_caches' > /dev/null 2>&1")
 
 # ==========================================
-# PENAMBAHAN FUNGSI GRID LAYOUT (MAKSIMAL & PROPORSIONAL)
+# PENAMBAHAN FUNGSI GRID LAYOUT (FINE-TUNING MARGIN ATAS)
 # ==========================================
 def apply_grid_layout(packages):
     count = len(packages)
     if count == 0:
         return
 
-    # Algoritma Penentu Kolom & Baris
     cols = 1
     while (cols * cols) < count:
         cols += 1
@@ -80,11 +79,11 @@ def apply_grid_layout(packages):
 
     W, H = 1280, 720
 
-    # KUNCI FINAL: Margin diperkecil seminimal mungkin agar area luas
-    TOP_MARGIN = 35      # Pas untuk Status Bar atas (sebelumnya 65)
-    BOTTOM_MARGIN = 10   # Pas untuk ujung bawah layar (sebelumnya 45)
-    TITLE_BAR_GAP = 32   # Ukuran presisi Title Bar Android (Bar Biru/Abu)
-    GAP = 1              # Celah super tipis antar aplikasi
+    # KOREKSI MARGIN: Ditambah agar Title Bar tidak tertabrak jam/sinyal Android
+    TOP_MARGIN = 50      # Dinaikkan dari 35 ke 50 piksel
+    BOTTOM_MARGIN = 15   # Dinaikkan dari 10 ke 15 piksel
+    TITLE_BAR_GAP = 32   
+    GAP = 1              
 
     total_vertical_gaps = (rows - 1) * TITLE_BAR_GAP
     USABLE_H = H - TOP_MARGIN - BOTTOM_MARGIN - total_vertical_gaps
@@ -92,21 +91,17 @@ def apply_grid_layout(packages):
     cellW = W // cols
     cellH = USABLE_H // rows
 
-    # Ratio standar HP layar lebar (Full View) adalah sekitar 1.9 hingga 2.1
-    # Kita kunci di 1.85 agar area kosong di kiri-kanan jadi SANGAT KECIL tanpa terlihat gepeng
     MAX_RATIO = 1.85 
 
     script_content = "#!/system/bin/sh\n"
     for i, pkg in enumerate(sorted(packages)):
         c, r = i % cols, i // cols
         
-        # Hitung ukuran kotak
         app_W = cellW
         app_H = cellH
         current_ratio = app_W / app_H
         offset_X = 0
         
-        # Fitur Auto-Center & Auto-Proportion
         if current_ratio > MAX_RATIO:
             app_W = int(app_H * MAX_RATIO)
             offset_X = (cellW - app_W) // 2 
@@ -114,11 +109,10 @@ def apply_grid_layout(packages):
         cell_L = c * cellW
         cell_T = TOP_MARGIN + (r * (cellH + TITLE_BAR_GAP))
         
-        # Terapkan perhitungan ke titik sudut layar
         L = cell_L + offset_X + GAP
         R = cell_L + offset_X + app_W - GAP
         T = cell_T + GAP
-        B = cell_T + app_H - GAP # (Bawah dikurangi sedikit saja agar maksimal)
+        B = cell_T + app_H - GAP
         
         script_content += f"""
 echo "-> Memproses {pkg}"
