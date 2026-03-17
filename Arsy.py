@@ -11,7 +11,6 @@ from discord_bot import generate_log_text, send_discord_report
 # OPTIMASI 1: PENGHAPUS RAM TERMUX & ANTI MIRING (STTY SANE)
 # ==========================================
 def deep_clear_termux():
-    # Mengembalikan format Termux yang rusak menjadi lurus kembali
     os.system("stty sane")
     os.system("clear")
 
@@ -88,7 +87,6 @@ def run_engine(config):
             time.sleep(5) 
 
 def main():
-    # Paksa reset di awal
     os.system("stty sane")
     config = load_config()
     
@@ -101,7 +99,7 @@ def main():
         print("[2] Link Private server")
         print("[3] Link Discord")
         print("[4] Atur Layout Grid")
-        print("[0] Keluar")
+        print("[0] Keluar & Bersihkan")
         print("====================================")
         
         print(f"\n* VIP Link: {'[Terisi]' if config['vip_link'] else '[KOSONG]'}")
@@ -133,9 +131,6 @@ def main():
                 print("[+] Disimpan!")
                 time.sleep(1)
                 
-        # ==========================================
-        # OPSI 4: EKSEKUSI GRID LAYOUT 
-        # ==========================================
         elif choice == '4':
             packages = get_roblox_packages()
             if not packages:
@@ -143,13 +138,13 @@ def main():
                 time.sleep(2)
             else:
                 print(f"\n[+] Memulai Setup Grid Layout untuk {len(packages)} aplikasi...")
-                print("[+] Sistem akan memberi jeda 4 detik per aplikasi agar Android tidak macet.")
+                print("[+] Memerlukan waktu, mohon tunggu Android bekerja...")
                 
                 apply_grid_layout(packages)
                 
-                print("\n[+] Proses membuka aplikasi selesai.")
+                print("\n[+] Semua aplikasi telah terbuka!")
                 print("[+] Menunggu 10 detik agar Anda bisa mengamati hasilnya di layar...")
-                time.sleep(10) # Jeda visual ditambah
+                time.sleep(10)
                 
                 print("\n[+] Menutup kembali seluruh aplikasi Roblox...")
                 for pkg in packages:
@@ -159,6 +154,17 @@ def main():
                 time.sleep(2)
 
         elif choice == '0':
+            print("\n[+] Menutup semua aplikasi Roblox...")
+            packages = get_roblox_packages()
+            for pkg in packages:
+                os.system(f"su -c 'am force-stop {pkg}'")
+            
+            print("[+] Mengosongkan Cache & RAM (Ini mungkin butuh 3 detik)...")
+            drop_android_ram()
+            time.sleep(1)
+            
+            print("\n[+] Perangkat Anda sudah bersih dan ringan! Selamat tinggal.")
+            time.sleep(2)
             deep_clear_termux()
             break
         else:
