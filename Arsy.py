@@ -2,24 +2,26 @@ import os
 import time
 import gc
 import sys
+import subprocess
 
 from utils import clear_screen, load_config, save_config, go_to_home_screen, get_roblox_packages, launch_to_vip_server, clean_system_cache, apply_grid_layout
 from telemetry import deploy_telemetry_lua, get_instances_telemetry
 from discord_bot import generate_log_text, send_discord_report
 
 # ==========================================
-# OPTIMASI 1: PENGHAPUS RAM TERMUX (FIXED)
+# OPTIMASI 1: PENGHAPUS RAM TERMUX & ANTI STAIRCASE
 # ==========================================
 def deep_clear_termux():
-    """Menggunakan clear bawaan OS agar format terminal (TTY) tidak rusak"""
-    os.system("clear")
+    # Ini akan mereset format TTY Termux 100% aman
+    sys.stdout.write('\033c\033[3J')
+    sys.stdout.flush()
 
 # ==========================================
 # OPTIMASI 2: PEMBERSIH RAM KERNEL ANDROID
 # ==========================================
 def drop_android_ram():
     try:
-        os.system("su -c 'sync; echo 3 > /proc/sys/vm/drop_caches'")
+        subprocess.run(["su", "-c", "sync; echo 3 > /proc/sys/vm/drop_caches"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     except:
         pass
 
@@ -34,7 +36,7 @@ def run_engine(config):
     go_to_home_screen()
     
     for pkg in packages:
-        os.system(f"su -c 'am force-stop {pkg}'")
+        subprocess.run(["su", "-c", f"am force-stop {pkg}"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     
     deploy_telemetry_lua(packages)
     time.sleep(2)
@@ -90,8 +92,6 @@ def run_engine(config):
             time.sleep(5) 
 
 def main():
-    # Jika terminal sempat rusak dari percobaan sebelumnya, kita paksa reset
-    os.system("reset") 
     config = load_config()
     
     while True:
@@ -136,7 +136,7 @@ def main():
                 time.sleep(1)
                 
         # ==========================================
-        # OPSI 4: EKSEKUSI GRID LAYOUT (FIXED)
+        # OPSI 4: EKSEKUSI GRID LAYOUT 
         # ==========================================
         elif choice == '4':
             packages = get_roblox_packages()
@@ -145,10 +145,9 @@ def main():
                 time.sleep(2)
             else:
                 print(f"\n[+] Memulai Setup Grid Layout untuk {len(packages)} aplikasi...")
-                print("[+] Mohon tunggu, sedang menyuntikkan koordinat...")
+                print("[+] Mohon tunggu, sedang menyuntikkan koordinat & membuka aplikasi...")
                 
-                # Kita TIDAK meminimalkan Termux di sini. Biarkan terbuka.
-                # Perintah monkey dari apply_grid_layout akan menimpa layar dengan sendirinya.
+                # Eksekusi Grid Layout (Sudah kebal Freeze)
                 apply_grid_layout(packages)
                 
                 print("\n[+] Semua aplikasi telah terbuka dengan layout presisi.")
@@ -157,7 +156,8 @@ def main():
                 
                 print("\n[+] Menutup kembali seluruh aplikasi Roblox...")
                 for pkg in packages:
-                    os.system(f"su -c 'am force-stop {pkg}'")
+                    # Menutup secara aman menggunakan subprocess
+                    subprocess.run(["su", "-c", f"am force-stop {pkg}"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                 
                 print("[+] Selesai! Mengembalikan ke menu utama...")
                 time.sleep(2)
