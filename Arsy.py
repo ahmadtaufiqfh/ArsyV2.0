@@ -7,9 +7,13 @@ from utils import clear_screen, load_config, save_config, go_to_home_screen, get
 from telemetry import deploy_telemetry_lua, get_instances_telemetry
 from discord_bot import generate_log_text, send_discord_report
 
+# ==========================================
+# OPTIMASI 1: PENGHAPUS RAM TERMUX (AMANKAN KEYBOARD)
+# ==========================================
 def deep_clear_termux():
-    os.system("stty sane")
-    os.system("clear")
+    # Menggunakan ANSI escape code murni agar tidak merusak sistem input keyboard
+    sys.stdout.write('\033c\033[3J')
+    sys.stdout.flush()
 
 def drop_android_ram():
     try:
@@ -34,7 +38,6 @@ def run_engine(config):
     time.sleep(2)
     
     print("\n[+] Memulai peluncuran otomatis ke Server...")
-    # Menjalankan aplikasi dengan membawa daftar aplikasi yang berhak masuk VIP
     vip_pkgs = config.get("vip_packages", packages)
     launch_to_vip_server(packages, config.get("vip_link", ""), config.get("public_link", ""), vip_pkgs)
     
@@ -87,7 +90,6 @@ def run_engine(config):
             time.sleep(5) 
 
 def main():
-    os.system("stty sane")
     config = load_config()
     
     while True:
@@ -110,8 +112,11 @@ def main():
         print(f"* Public Link : {'[Terisi]' if config.get('public_link') else '[KOSONG]'}")
         print(f"* Discord     : {'[Terisi]' if config.get('webhook_url') else '[KOSONG]'}")
         
-        choice = input("\nPilih Menu (0-4): ")
-        
+        try:
+            choice = input("\nPilih Menu (0-4): ").strip()
+        except EOFError:
+            break
+            
         if choice == '1':
             if not config.get('webhook_url'):
                 print("\n[!] Peringatan: Anda harus mengisi Link Discord!")
@@ -153,13 +158,10 @@ def main():
                 print("   [!] Tidak ada aplikasi Roblox terdeteksi. Silakan clone dulu/gunakan App Cloner!")
             else:
                 for i, pkg in enumerate(sorted(packages)):
-                    # Jika sebelumnya sudah diset masuk VIP (atau konfigurasi masih kosong/baru pertama pakai), default = 'y'
                     default_ans = 'y' if (pkg in current_vip_pkgs or not current_vip_pkgs) else 'n'
                     
-                    # Bertanya pada user satu per satu
                     ans = input(f"   -> Aplikasi {i+1} [{pkg}] masuk Private Server? (y/n) [{default_ans}]: ").strip().lower()
                     
-                    # Jika ditekan enter saja (kosong), gunakan jawaban default
                     if ans == '':
                         ans = default_ans
                         
@@ -168,7 +170,6 @@ def main():
             
             config['vip_packages'] = new_vip_pkgs
             
-            # Membersihkan konfigurasi 'vip_limit' versi lama (jika masih tersangkut di file)
             if 'vip_limit' in config:
                 del config['vip_limit']
                 
@@ -178,9 +179,9 @@ def main():
             
         elif choice == '3':
             print(f"\nLink lama: {config.get('webhook_url', '')}")
-            new_web = input("Masukkan Webhook baru: ")
-            if new_web.strip():
-                config['webhook_url'] = new_web.strip()
+            new_web = input("Masukkan Webhook baru: ").strip()
+            if new_web:
+                config['webhook_url'] = new_web
                 save_config(config)
                 print("[+] Disimpan!")
                 time.sleep(1)
