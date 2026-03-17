@@ -2,26 +2,22 @@ import os
 import time
 import gc
 import sys
-import subprocess
 
 from utils import clear_screen, load_config, save_config, go_to_home_screen, get_roblox_packages, launch_to_vip_server, clean_system_cache, apply_grid_layout
 from telemetry import deploy_telemetry_lua, get_instances_telemetry
 from discord_bot import generate_log_text, send_discord_report
 
 # ==========================================
-# OPTIMASI 1: PENGHAPUS RAM TERMUX & ANTI STAIRCASE
+# OPTIMASI 1: PENGHAPUS RAM TERMUX & ANTI MIRING (STTY SANE)
 # ==========================================
 def deep_clear_termux():
-    # Ini akan mereset format TTY Termux 100% aman
-    sys.stdout.write('\033c\033[3J')
-    sys.stdout.flush()
+    # Mengembalikan format Termux yang rusak menjadi lurus kembali
+    os.system("stty sane")
+    os.system("clear")
 
-# ==========================================
-# OPTIMASI 2: PEMBERSIH RAM KERNEL ANDROID
-# ==========================================
 def drop_android_ram():
     try:
-        subprocess.run(["su", "-c", "sync; echo 3 > /proc/sys/vm/drop_caches"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        os.system("su -c 'sync; echo 3 > /proc/sys/vm/drop_caches'")
     except:
         pass
 
@@ -36,7 +32,7 @@ def run_engine(config):
     go_to_home_screen()
     
     for pkg in packages:
-        subprocess.run(["su", "-c", f"am force-stop {pkg}"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        os.system(f"su -c 'am force-stop {pkg}'")
     
     deploy_telemetry_lua(packages)
     time.sleep(2)
@@ -92,6 +88,8 @@ def run_engine(config):
             time.sleep(5) 
 
 def main():
+    # Paksa reset di awal
+    os.system("stty sane")
     config = load_config()
     
     while True:
@@ -145,19 +143,17 @@ def main():
                 time.sleep(2)
             else:
                 print(f"\n[+] Memulai Setup Grid Layout untuk {len(packages)} aplikasi...")
-                print("[+] Mohon tunggu, sedang menyuntikkan koordinat & membuka aplikasi...")
+                print("[+] Sistem akan memberi jeda 4 detik per aplikasi agar Android tidak macet.")
                 
-                # Eksekusi Grid Layout (Sudah kebal Freeze)
                 apply_grid_layout(packages)
                 
-                print("\n[+] Semua aplikasi telah terbuka dengan layout presisi.")
-                print("[+] Menunggu 5 detik untuk konfirmasi visual di layar...")
-                time.sleep(5)
+                print("\n[+] Proses membuka aplikasi selesai.")
+                print("[+] Menunggu 10 detik agar Anda bisa mengamati hasilnya di layar...")
+                time.sleep(10) # Jeda visual ditambah
                 
                 print("\n[+] Menutup kembali seluruh aplikasi Roblox...")
                 for pkg in packages:
-                    # Menutup secara aman menggunakan subprocess
-                    subprocess.run(["su", "-c", f"am force-stop {pkg}"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                    os.system(f"su -c 'am force-stop {pkg}'")
                 
                 print("[+] Selesai! Mengembalikan ke menu utama...")
                 time.sleep(2)
