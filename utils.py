@@ -65,55 +65,65 @@ def clean_system_cache():
     os.system("su -c 'sync; echo 3 > /proc/sys/vm/drop_caches > /dev/null 2>&1'")
 
 # ==========================================
-# PENAMBAHAN FUNGSI GRID LAYOUT (RAPAT TENGAH)
+# PENAMBAHAN FUNGSI GRID LAYOUT (AUTO-PROPORSI & AUTO-GENAP)
 # ==========================================
 def apply_grid_layout(packages):
     count = len(packages)
     if count == 0:
         return
 
+    # 1. LOGIKA GANJIL -> GENAP (Sesuai Permintaan)
+    grid_count = count
+    if grid_count % 2 != 0 and grid_count > 1:
+        grid_count += 1
+
     cols = 1
-    while (cols * cols) < count:
+    while (cols * cols) < grid_count:
         cols += 1
-    rows = (count + cols - 1) // cols
+    rows = (grid_count + cols - 1) // cols
 
+    # 2. KONFIGURASI LAYAR
     W, H = 1280, 720
-
     TOP_MARGIN = 45      
     BOTTOM_MARGIN = 15   
     TITLE_BAR_GAP = 32   
-    GAP = 1              
+    GAP = 2 # Jarak spasi antar aplikasi
 
-    total_vertical_gaps = (rows - 1) * TITLE_BAR_GAP
-    USABLE_H = H - TOP_MARGIN - BOTTOM_MARGIN - total_vertical_gaps
+    USABLE_W = W
+    USABLE_H = H - TOP_MARGIN - BOTTOM_MARGIN
 
-    cellW = W // cols
-    cellH = USABLE_H // rows
+    TARGET_RATIO = 1.77 # Kunci mutlak di rasio 16:9 agar game tidak gepeng/mengotak
 
-    MAX_RATIO = 1.85 
+    # 3. KALKULASI UKURAN MAKSIMAL YANG BISA MASUK LAYAR
+    # Skenario A: Mentok di Kiri-Kanan (Lebar)
+    max_W_by_width = (USABLE_W - ((cols - 1) * GAP)) / cols
+    max_H_by_width = max_W_by_width / TARGET_RATIO
 
-    # --- RUMUS BARU: Hitung total lebar agar bisa ditaruh di tengah ---
-    app_W = cellW
-    app_H = cellH
-    if (app_W / app_H) > MAX_RATIO:
-        app_W = int(app_H * MAX_RATIO)
-        
-    # Lebar total semua aplikasi + jarak antaranya
-    total_grid_width = (cols * app_W) + ((cols - 1) * (GAP * 2))
-    # Titik awal paling kiri agar grup aplikasi berada tepat di tengah layar
-    start_X = (W - total_grid_width) // 2
+    # Skenario B: Mentok di Atas-Bawah (Tinggi)
+    max_H_by_height = (USABLE_H - ((rows - 1) * TITLE_BAR_GAP) - ((rows - 1) * GAP)) / rows
+    max_W_by_height = max_H_by_height * TARGET_RATIO
+
+    # Ambil ukuran yang paling kecil agar pasti muat dan tidak nabrak border layar
+    app_W = int(min(max_W_by_width, max_W_by_height))
+    app_H = int(app_W / TARGET_RATIO)
+
+    # 4. KALKULASI RATA TENGAH (CENTERING GRID)
+    total_grid_W = (cols * app_W) + ((cols - 1) * GAP)
+    total_grid_H = (rows * app_H) + ((rows - 1) * (TITLE_BAR_GAP + GAP))
+
+    start_X = (USABLE_W - total_grid_W) // 2
+    start_Y = TOP_MARGIN + ((USABLE_H - total_grid_H) // 2)
 
     script_content = "#!/system/bin/sh\n"
     for i, pkg in enumerate(sorted(packages)):
         c, r = i % cols, i // cols
         
-        # Koordinat Horizontal (Rapat ke tengah)
-        L = start_X + (c * (app_W + (GAP * 2)))
+        # Koordinat presisi berdasarkan offset grup
+        L = start_X + (c * (app_W + GAP))
         R = L + app_W
         
-        # Koordinat Vertikal (Tetap proporsional)
-        T = TOP_MARGIN + (r * (cellH + TITLE_BAR_GAP)) + GAP
-        B = T + app_H - (GAP * 2)
+        T = start_Y + (r * (app_H + TITLE_BAR_GAP + GAP))
+        B = T + app_H
         
         script_content += f"""
 echo "-> Memproses {pkg}"
