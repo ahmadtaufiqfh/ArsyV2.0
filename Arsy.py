@@ -7,16 +7,12 @@ from utils import clear_screen, load_config, save_config, go_to_home_screen, get
 from telemetry import deploy_telemetry_lua, get_instances_telemetry
 from discord_bot import generate_log_text, send_discord_report
 
-# ==========================================
-# OPTIMASI 1: PENGHAPUS RAM TERMUX & ANTI MIRING (STTY SANE)
-# ==========================================
 def deep_clear_termux():
     os.system("stty sane")
     os.system("clear")
 
 def drop_android_ram():
     try:
-        # Ditambahkan > /dev/null 2>&1 agar jika dilarang sistem Cloud Phone, errornya disembunyikan
         os.system("su -c 'sync; echo 3 > /proc/sys/vm/drop_caches > /dev/null 2>&1'")
     except:
         pass
@@ -37,7 +33,9 @@ def run_engine(config):
     deploy_telemetry_lua(packages)
     time.sleep(2)
     
-    launch_to_vip_server(packages, config["vip_link"])
+    print("\n[+] Memulai peluncuran otomatis ke Server...")
+    # Mengeksekusi peluncuran server dengan batas yang sudah diatur di Menu 2
+    launch_to_vip_server(packages, config.get("vip_link", ""), config.get("vip_limit", 0), config.get("public_link", ""))
     
     gc.collect() 
     drop_android_ram()
@@ -97,34 +95,65 @@ def main():
         print("        ARSY V2.0 PURE AFK          ")
         print("====================================")
         print("[1] Jalankan")
-        print("[2] Link Private server")
+        print("[2] Pengaturan Link Server (VIP/Public)")
         print("[3] Link Discord")
         print("[4] Atur Layout Grid")
         print("[0] Keluar & Bersihkan")
         print("====================================")
         
-        print(f"\n* VIP Link: {'[Terisi]' if config['vip_link'] else '[KOSONG]'}")
-        print(f"* Discord:  {'[Terisi]' if config['webhook_url'] else '[KOSONG]'}")
+        limit_text = "[Semua Akun]" if config.get("vip_limit", 0) == 0 else f"[{config.get('vip_limit')} Akun]"
+        print(f"\n* Target VIP  : {limit_text}")
+        print(f"* VIP Link    : {'[Terisi]' if config.get('vip_link') else '[KOSONG]'}")
+        print(f"* Public Link : {'[Terisi]' if config.get('public_link') else '[KOSONG]'}")
+        print(f"* Discord     : {'[Terisi]' if config.get('webhook_url') else '[KOSONG]'}")
         
         choice = input("\nPilih Menu (0-4): ")
         
         if choice == '1':
-            if not config['vip_link'] or not config['webhook_url']:
-                print("\n[!] Peringatan: Anda harus mengisi Link VIP dan Discord!")
+            if not config.get('webhook_url'):
+                print("\n[!] Peringatan: Anda harus mengisi Link Discord!")
+                time.sleep(2)
+            elif not config.get('vip_link') and not config.get('public_link'):
+                print("\n[!] Peringatan: Anda harus mengisi setidaknya satu Link (VIP atau Public) di Menu 2!")
                 time.sleep(2)
             else:
                 run_engine(config)
                 break 
+                
+        # ==========================================
+        # MENU 2: PENGATURAN LINK SPLIT (VIP & PUBLIC)
+        # ==========================================
         elif choice == '2':
-            print(f"\nLink lama: {config['vip_link']}")
-            new_vip = input("Masukkan Link VIP baru: ")
-            if new_vip.strip():
-                config['vip_link'] = new_vip.strip()
-                save_config(config)
-                print("[+] Disimpan!")
-                time.sleep(1)
+            print("\n=== PENGATURAN LINK SERVER ===")
+            print("Ketik '0' jika ingin MENGHAPUS link, atau cukup tekan ENTER untuk melewati.")
+            
+            print(f"\n1. Link VIP Utama: {config.get('vip_link', 'KOSONG')}")
+            new_vip = input("   Masukkan Link VIP baru: ").strip()
+            if new_vip == '0':
+                config['vip_link'] = ""
+            elif new_vip:
+                config['vip_link'] = new_vip
+
+            print(f"\n2. Batas Akun VIP: {config.get('vip_limit', 0)}")
+            print("   (Contoh: Jika diisi 4, maka 4 akun pertama masuk VIP. Ketik 0 agar SEMUA masuk VIP)")
+            limit_input = input("   Berapa akun yang masuk VIP? : ").strip()
+            if limit_input.isdigit():
+                config['vip_limit'] = int(limit_input)
+
+            print(f"\n3. Link Public / Sisa: {config.get('public_link', 'KOSONG')}")
+            print("   (Link ini dipakai untuk sisa akun. Kosongkan jika ingin sisa akun hanya diam di menu Roblox)")
+            new_pub = input("   Masukkan Link Public baru: ").strip()
+            if new_pub == '0':
+                config['public_link'] = ""
+            elif new_pub:
+                config['public_link'] = new_pub
+
+            save_config(config)
+            print("\n[+] Pengaturan Server Berhasil Disimpan!")
+            time.sleep(2)
+            
         elif choice == '3':
-            print(f"\nLink lama: {config['webhook_url']}")
+            print(f"\nLink lama: {config.get('webhook_url', '')}")
             new_web = input("Masukkan Webhook baru: ")
             if new_web.strip():
                 config['webhook_url'] = new_web.strip()
